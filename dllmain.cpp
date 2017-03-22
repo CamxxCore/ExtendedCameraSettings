@@ -12,6 +12,7 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 		scriptRegister(hModule, main);
 		break;
 	case DLL_PROCESS_DETACH:
+		unload();
 		scriptUnregister(main);
 	}
 	return TRUE;

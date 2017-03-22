@@ -26,6 +26,14 @@ public:
 
 		if (GetLastError() == 0x2 || strstr(buffer, "err")) return defaultValue;
 
+		if (typeid(T) == typeid(bool))
+		{
+			if (!strstr(buffer, "false"))
+				return (T) (bool) true;
+
+			return (T) (bool) false;
+		}
+
 		std::stringstream ss;
 
 		ss << buffer;
