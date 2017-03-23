@@ -13,6 +13,8 @@
 #include <mutex>
 #include <iterator>
 
+#include <math.h>
+
 #include "inc/enums.h"
 #include "inc/types.h"
 #include "inc/natives.h"

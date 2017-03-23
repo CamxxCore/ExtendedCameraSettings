@@ -22,9 +22,9 @@ public:
 
 		char buffer[0x100];
 
-		GetPrivateProfileStringA(section, key, "err", buffer, sizeof(buffer), filename);
+		GetPrivateProfileStringA(section, key, "error", buffer, sizeof(buffer), filename);
 
-		if (GetLastError() == 0x2 || strstr(buffer, "err")) return defaultValue;
+		if (GetLastError() == 0x2 || !strcmp(buffer, "error")) return defaultValue;
 
 		if (typeid(T) == typeid(bool))
 		{

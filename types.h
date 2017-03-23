@@ -64,7 +64,7 @@ struct PauseMenuItemInfo
 	char targetSettingIdx; // 0x18-0x19 Index of the setting that is changed when this item is invoked
 	char actionType; //0x19-0x1A i.e. slider, on_off etc.
 	char itemType; //0x1A-0x1B 1 = default, 2 = dynamic
-	char selectionDisabled; //0x1B-0x1C
+	char stateFlags; //0x1B-0x1C // 1= disabled
 	char pad1[0x4];
 }; //sizeof=0x20
 
@@ -90,13 +90,13 @@ public:
 	virtual char * getPsoStruct() = 0;
 };
 
-struct camMetadataPoolObject
+struct camMetadataRef
 {
 public:
 	unsigned int nameHash;
 	int unk;
 	camBaseObjectMetadata * pData; //0x8-0x10
-	camMetadataPoolObject * pNext; //0x10-0x18
+	camMetadataRef * pNext; //0x10-0x18
 	char pad0[0x8]; //0x10-0x20
 };
 

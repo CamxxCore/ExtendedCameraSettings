@@ -11,33 +11,37 @@ eGameState *g_gameState;
 
 CConfig g_scriptconfig = CConfig("POVCameraUnlocker.ini");
 
-rage::pgCollection<camMetadataPoolObject*> * g_metadataCollection;
+rage::pgCollection<camMetadataRef*> * g_metadataCollection;
 
 rage::pgCollection<PauseMenuInstance> activeMenuArray;
 
-typedef const char *(*GetGxtTextEntryForHash)(const char * text, unsigned int hashName);
+typedef const char *(*GetGlobalTextEntry_t)(const char * text, unsigned int hashName);
 
 typedef void(*SetPauseMenuPreference_t)(long long settingIndex, int value, unsigned int unk);
 
 typedef bool(*SetMenuSlot_t)(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bIsSlotUpdate);
 
-CallHook<GetGxtTextEntryForHash> * g_getGxtEntryFn;
+CallHook<GetGlobalTextEntry_t> * g_getGxtEntryFn;
 
 CallHook<SetPauseMenuPreference_t> * g_setPauseMenuPreferenceFn;
 
-CallHook<SetMenuSlot_t> * g_createSliderMenuItem;
+CallHook<SetMenuSlot_t> * g_createSliderItemFn;
 
-CallHook<SetMenuSlot_t> * g_createToggleMenuItem;
+CallHook<SetMenuSlot_t> * g_createToggleItemFn;
 
 std::map<unsigned int, std::string> g_textEntries;
 
 static std::mutex g_textMutex;
 
-int g_vehicleFovScale = 5;
+bool firstPersonUseReticle;
+
+int firstPersonVehicleFovScale = 5;
+
+bool followVehicleHighSpeedShake = false;
 
 int g_disableEnterWaterCameraSwap;
 
-int numPauseMenuItems = 2;
+int numPauseMenuItems = 5;
 
 void addOffsetsForGameVersion(int gameVer)
 {
@@ -149,7 +153,7 @@ void patchCinematicMountedCameraMetadata(uintptr_t address)
 	AddressPool addresses = (*g_addresses.get("cinematicMountedCamera"));
 
 	*reinterpret_cast<float*>(address + addresses["minPitch"]) = 
-		g_scriptconfig.get<float>("InVehicleCamera", "MinPitch", -41.70f);;
+		g_scriptconfig.get<float>("InVehicleCamera", "MinPitch", -41.70f);
 
 	*reinterpret_cast<float*>(address + addresses["maxPitch"]) =
 		g_scriptconfig.get<float>("InVehicleCamera", "MaxPitch", 30.0f);;
@@ -167,12 +171,21 @@ void patchCinematicMountedCameraMetadata(uintptr_t address)
 		g_scriptconfig.get<float>("InVehicleCamera", "MinSpeedForCorrection", 20.0f);
 }
 
+void setGlobalsFromConfigEntries()
+{
+	followVehicleHighSpeedShake = g_scriptconfig.get<bool>("FollowVehicleCamera", "UseHighSpeedShake", false);
+
+	firstPersonUseReticle = g_scriptconfig.get<bool>("OnFootCamera", "EnableReticle", false);
+
+	firstPersonVehicleFovScale = static_cast<int>((10.0f / 50.0f) * -(g_scriptconfig.get<float>("InVehicleCamera", "FOV", 50.0f) + 50.0f));
+}
+
 void patchFollowVehicleCameraMetadata(uintptr_t address)
 {
 	AddressPool addresses = (*g_addresses.get("followVehicleCamera"));
 
 	*reinterpret_cast<float*>(address + addresses["minSpeedForShake"]) =
-		g_scriptconfig.get<float>("FollowVehicleCamera", "MinSpeedForHighSpeedShake", 40.0f);;
+		g_scriptconfig.get<bool>("FollowVehicleCamera", "UseHighSpeedShake", false) ? 40.0f : FLT_MAX;
 }
 
 void patchMetadataGlobal()
@@ -181,9 +194,9 @@ void patchMetadataGlobal()
 	{
 		if (!it) continue;
 
-		for (camMetadataPoolObject * poolObj = *it; poolObj; poolObj = poolObj->pNext)
+		for (camMetadataRef * ref = *it; ref; ref = ref->pNext)
 		{
-			camBaseObjectMetadata * metadata = poolObj->pData;
+			camBaseObjectMetadata * metadata = ref->pData;
 
 			char * psoStruct = metadata->getPsoStruct();
 
@@ -234,7 +247,7 @@ const char * getGxtEntryForHash_Hook(const char * text, unsigned int hashName)
 	return g_getGxtEntryFn->function(text, hashName);
 }
 
-unsigned int addGxtTextEntry(const char * key, const char * value)
+unsigned int addGxtEntry(const char * key, const char * value)
 {
 	auto hashKey = hashString(key);
 
@@ -245,7 +258,7 @@ unsigned int addGxtTextEntry(const char * key, const char * value)
 	return hashKey;
 }
 
-inline PauseMenuInstance * pauseMenuLookup(int menuIndex)
+inline PauseMenuInstance * lookupMenuForIndex(int menuIndex)
 {
 	for (auto it = activeMenuArray.begin(); it != activeMenuArray.end(); it++)
 	{
@@ -258,24 +271,61 @@ inline PauseMenuInstance * pauseMenuLookup(int menuIndex)
 	return NULL;
 }
 
+template <typename T>
+T patchMetadataValue(eMetadataHash type, std::string category, std::string key, T value)
+{
+	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
+	{
+		if (!it) continue;
+
+		for (camMetadataRef * ref = *it; ref; ref = ref->pNext)
+		{
+			camBaseObjectMetadata * metadata = ref->pData;
+
+			auto metadataTypeHash = *(DWORD*)(metadata->getPsoStruct() + 8);
+
+			uintptr_t address = reinterpret_cast<uintptr_t>(metadata);
+
+			if (metadataTypeHash == type)
+			{
+				*reinterpret_cast<T*>(address + (*g_addresses.get(category))[key]) = value;
+			}
+		}
+	}
+
+	return value;
+}
+
 void SetPauseMenuPreference_Hook(long long settingIndex, int value, unsigned int unk)
 {
-	if (settingIndex >= 175)
+	if (settingIndex >= 200)
 	{
 		switch (settingIndex)
 		{
-		case 175:
+		case 200:
 			if (value)
-				g_cinematicCameraEnterWaterPatch1.install();
-			else
 				g_cinematicCameraEnterWaterPatch1.remove();
+			else g_cinematicCameraEnterWaterPatch1.install();
 			return;
-		case 176:
+		case 201:
 			if (value)
-				g_cinematicCameraEnterWaterPatch2.install();
-			else
 				g_cinematicCameraEnterWaterPatch2.remove();
+			else g_cinematicCameraEnterWaterPatch2.install();
 			return;
+		case 202:
+			firstPersonUseReticle = patchMetadataValue<bool>(eMetadataHash::eCamFirstPersonShooterCameraMetadata,
+				"firstPersonCamera", "useReticule", value != 0);
+			return;
+		case 203:
+			patchMetadataValue<float>(eMetadataHash::eCamCinematicMountedCameraMetadata,
+				"cinematicMountedCamera", "fov", 35.0f + (value * 4));
+			firstPersonVehicleFovScale = value;
+			return;
+		case 204:
+			patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata,
+				"followVehicleCamera", "minSpeedForShake", value ? 40.0f : FLT_MAX );
+			followVehicleHighSpeedShake = value != 0;
+			return;			
 		default:
 			return;
 		}
@@ -286,31 +336,40 @@ void SetPauseMenuPreference_Hook(long long settingIndex, int value, unsigned int
 
 bool SetMenuSlot_Hook(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bSlotUpdate)
 {
-	if (settingIndex >= 175)
+	if (settingIndex >= 200)
 	{
 		switch (settingIndex)
 		{
-		case 175:		
+		case 200:
 			value = g_cinematicCameraEnterWaterPatch1.active;
 			break;
-		case 176:	
+		case 201:
 			value = g_cinematicCameraEnterWaterPatch2.active;
+			break;
+		case 202:
+			value = firstPersonUseReticle;
+			break;
+		case 203:
+			value = firstPersonVehicleFovScale;
+			break;
+		case 204:
+			value = followVehicleHighSpeedShake;
 			break;
 		default:
 			break;
 		}
 	}
 
-	return g_createToggleMenuItem->function(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
+	return g_createToggleItemFn->function(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
 }
 
 void addPauseMenuItems()
 {
 	int const cameraSettingsLutIdx = 136;
 
-	PauseMenuInstance * pMenu = pauseMenuLookup(cameraSettingsLutIdx);
+	PauseMenuInstance * pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
 
-	auto newCount = (pMenu->itemCount + numPauseMenuItems);
+	auto newCount = pMenu->itemCount + numPauseMenuItems;
 
 	auto newSize = newCount * sizeof(PauseMenuItemInfo);
 
@@ -320,17 +379,19 @@ void addPauseMenuItems()
 
 	int itemIdx = pMenu->itemCount - 1;
 
-	int targetSettingIdx = 175;
+	int targetSettingIdx = 200; // hijack the last 50 settings indices with the hope that rockstar won't add more than 15 new settings in the future.. (max is 255)
 
 	PauseMenuItemInfo item;
 
 	item.menuLutIndex = 51; // "SETTINGS_LIST"
+
+	item.stateFlags = 0;
+
 	item.itemType = 2;
 
-	item.textHash = addGxtTextEntry("MO_CUSTOM1", "Camera Switch on Enter Water");
-
+	item.textHash = addGxtEntry("MO_CUSTOM1", "First Person Camera Switch on Enter Water");
 	item.targetSettingIdx = targetSettingIdx;
-	item.actionType = Toggle;
+	item.actionType = ePauseMenuItemAction::Toggle;
 
 	newItemArray[itemIdx] = item;
 
@@ -338,10 +399,9 @@ void addPauseMenuItems()
 
 	targetSettingIdx++;
 
-	item.textHash = addGxtTextEntry("MO_CUSTOM2", "Camera Switch on Vehicle Destroyed");
-
+	item.textHash = addGxtEntry("MO_CUSTOM2", "First Person Camera Switch on Vehicle Destroyed");
 	item.targetSettingIdx = targetSettingIdx;
-	item.actionType = Toggle;
+	item.actionType = ePauseMenuItemAction::Toggle;
 
 	newItemArray[itemIdx] = item;
 
@@ -349,8 +409,37 @@ void addPauseMenuItems()
 
 	targetSettingIdx++;
 
-	// reset defaults button should be at the bottom.
-	newItemArray[itemIdx] = pMenu->items[pMenu->itemCount - 1]; 
+	item.textHash = addGxtEntry("MO_CUSTOM3", "First Person Always Use Reticle");
+	item.targetSettingIdx = targetSettingIdx;
+	item.actionType = ePauseMenuItemAction::Toggle;
+
+	newItemArray[itemIdx] = item;
+
+	itemIdx++;
+
+	targetSettingIdx++;
+
+	item.textHash = addGxtEntry("MO_CUSTOM4", "First Person In Vehicle Field of View");
+	item.targetSettingIdx = targetSettingIdx;
+	item.actionType = ePauseMenuItemAction::Slider;
+
+	newItemArray[itemIdx] = item;
+
+	itemIdx++;
+
+	targetSettingIdx++;
+
+	item.textHash = addGxtEntry("MO_CUSTOM5", "Follow Vehicle High Speed Shake");
+	item.targetSettingIdx = targetSettingIdx;
+	item.actionType = ePauseMenuItemAction::Toggle;
+
+	newItemArray[itemIdx] = item;
+
+	itemIdx++;
+
+	targetSettingIdx++;
+
+	newItemArray[itemIdx] = pMenu->items[pMenu->itemCount - 1]; // Reset defaults button should be at the bottom.
 
 	itemIdx++;
 
@@ -365,7 +454,7 @@ void removePauseMenuItems()
 {
 	int const cameraSettingsLutIdx = 136;
 
-	PauseMenuInstance * pMenu = pauseMenuLookup(136);
+	PauseMenuInstance * pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
 
 	PauseMenuItemInfo * pOriginalItems = pMenu->items;
 
@@ -388,18 +477,14 @@ void removePauseMenuItems()
 	delete pOriginalItems;
 }
 
-bool bLoaded = false;
-
-bool bSetupMenu = false;
-
 void scriptMain()
 {
+	GAMEPLAY::SET_THIS_SCRIPT_CAN_BE_PAUSED(FALSE);
+
 	while (true)
 	{
-		if ((*g_gameState) == eGameState::Playing && !bLoaded)
+		if ((*g_gameState) == eGameState::Playing)
 		{
-			addPauseMenuItems();
-
 			patchMetadataGlobal();
 
 			doFirstPersonEnterWaterJmpPatch();
@@ -409,7 +494,7 @@ void scriptMain()
 				notifyAboveMap("~r~POVCameraUnlocker\n~w~Patched Successfully.");
 			}
 
-			bLoaded = true;
+			break;
 		}
 
 		WAIT(0);
@@ -442,23 +527,21 @@ void main()
 
 	result = *reinterpret_cast<int *>(result - 4) + result + 6;
 
-	g_metadataCollection = (rage::pgCollection<camMetadataPoolObject*>*)((*reinterpret_cast<int *>(result + 3) + result - 1));
+	g_metadataCollection = (rage::pgCollection<camMetadataRef*>*)((*reinterpret_cast<int *>(result + 3) + result - 1));
 
 	result = Pattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx").get(-0x5);
 
-	g_getGxtEntryFn = HookManager::SetCall<GetGxtTextEntryForHash>(result, getGxtEntryForHash_Hook);
+	g_getGxtEntryFn = HookManager::SetCall<GetGlobalTextEntry_t>(result, getGxtEntryForHash_Hook);
 
 	result = Pattern((BYTE*)"\x0F\xB7\x54\x51\x00", "xxxx?").get();
 
 	activeMenuArray = *(rage::pgCollection<PauseMenuInstance>*)(*reinterpret_cast<int *>(result - 4) + result);
 
-	//memset((void*)0x1409EAEA1, 0x90, 6); // run scripts even in pause menu...
-
 	auto pattern = Pattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
 
-	g_createSliderMenuItem = HookManager::SetCall<SetMenuSlot_t>(pattern.get(-0x1A), SetMenuSlot_Hook); //-0x1A
+	g_createSliderItemFn = HookManager::SetCall<SetMenuSlot_t>(pattern.get(-0x1A), SetMenuSlot_Hook); //-0x1A
 
-	g_createToggleMenuItem = HookManager::SetCall<SetMenuSlot_t>(pattern.get(0xA8), SetMenuSlot_Hook); // +0xA8
+	g_createToggleItemFn = HookManager::SetCall<SetMenuSlot_t>(pattern.get(0xA8), SetMenuSlot_Hook); // +0xA8
 
 	pattern = Pattern((BYTE*)"\xF2\x0F\x2C\x56\x00", "xxxx?");
 
@@ -466,17 +549,20 @@ void main()
 
 	memset((void*)pattern.get(0x12), 0x90, 6); // always toggle preferences..
 
+	//memset((void*)0x1409EAEA1, 0x90, 6); // run scripts even in pause menu...
+
 	addOffsetsForGameVersion(gameVersion);
+
+	setGlobalsFromConfigEntries();
+
+	addPauseMenuItems();
 
 	scriptMain();
 }
 
 void unload()
 {
-	//if (bSetupMenu)
-	//{
-		removePauseMenuItems();
-	//}
+	removePauseMenuItems();
 
 	if (g_getGxtEntryFn)
 	{
@@ -490,15 +576,15 @@ void unload()
 		g_setPauseMenuPreferenceFn = NULL;
 	}
 
-	if (g_createSliderMenuItem)
+	if (g_createSliderItemFn)
 	{
-		delete g_createSliderMenuItem;
-		g_createSliderMenuItem = NULL;
+		delete g_createSliderItemFn;
+		g_createSliderItemFn = NULL;
 	}
 
-	if (g_createToggleMenuItem)
+	if (g_createToggleItemFn)
 	{
-		delete g_createToggleMenuItem;
-		g_createToggleMenuItem = NULL;
+		delete g_createToggleItemFn;
+		g_createToggleItemFn = NULL;
 	}
 }
