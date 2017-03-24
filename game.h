@@ -1,20 +1,6 @@
 #pragma once
 
-typedef struct
-{
-	int settingId;
-	int value;
-} profileSetting_t;
-
-enum eMetadataHash : unsigned int
-{
-	eCamFollowPedCameraMetadata = 3759477553,
-	eCamFirstPersonShooterCameraMetadata = 3837693093,
-	eCamCinematicMountedCameraMetadata = 2185301869,
-	eCamFollowVehicleCameraMetadata = 420909885
-};
-
-inline unsigned int hashString(const char * str)
+inline unsigned int getHashKey(const char * str)
 {
 	return GAMEPLAY::GET_HASH_KEY(const_cast<char*>(str));
 }

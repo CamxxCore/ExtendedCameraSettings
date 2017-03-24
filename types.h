@@ -37,7 +37,7 @@ namespace rage
 	};
 }
 
-enum ePauseMenuItemAction
+enum eDynamicMenuAction
 {
 	Slider = 0,
 	Toggle = 1,
@@ -63,8 +63,8 @@ struct PauseMenuItemInfo
 	char pad0[0x4]; //0x14-0x18
 	char targetSettingIdx; // 0x18-0x19 Index of the setting that is changed when this item is invoked
 	char actionType; //0x19-0x1A i.e. slider, on_off etc.
-	char itemType; //0x1A-0x1B 1 = default, 2 = dynamic
-	char stateFlags; //0x1B-0x1C // 1= disabled
+	char type; //0x1A-0x1B 1 = default button, 2 = dynamic 8 = immutable text block
+	char stateFlags; //0x1B-0x1C // 1 = disabled
 	char pad1[0x4];
 }; //sizeof=0x20
 
@@ -110,6 +110,12 @@ public:
 struct camCinematicMountedCameraMetadataLeadingLookSettings
 {
 	char pad0[0x30];
+};
+
+struct camThirdPersonCameraMetadataPivotOverBoundingBoxSettings
+{
+	void ** vfTable; //0x0-0x8
+
 };
 
 struct camFirstPersonShooterCameraMetadataRelativeAttachOrientationSettings

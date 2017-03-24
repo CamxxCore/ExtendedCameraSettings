@@ -1,19 +1,29 @@
 
 #pragma once
 
-#include <windows.h>
-#include <Psapi.h>
-#include <inttypes.h>
+class AddressMgr;
 
-#include <cstdio>
+extern AddressMgr g_addresses;
+
+#define __MAJOR_REV__ 1
+#define __MINOR_REV__ 0
+
+#define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
+
+#define WriteInt(a,b)(*(int*)a = (int)b)
+
+#define WriteFloat(a,b)(*(float*)a = (float)b)
+
+#define WriteBoolean(a,b)(*(bool*)a = (bool)b)
+
+#include <windows.h>
+
 #include <map>
-#include <sstream>
-#include <assert.h>
 #include <vector>
 #include <mutex>
-#include <iterator>
+#include <fstream>
 
-#include <math.h>
+#include "resource.h"
 
 #include "inc/enums.h"
 #include "inc/types.h"
@@ -25,19 +35,20 @@
 #include "patch.h"
 #include "enums.h"
 #include "config.h"
+#include "types.h"
+#include "game.h"
 
 #include "AddressMgr.h"
 
-extern AddressMgr g_addresses;
-
-#include "types.h"
-
 #include "Hooking.h"
 
-#include "game.h"
+#pragma region Game Includes
 
 #include "profileSettingsMgr.h"
 
-void main();
+#pragma endregion
 
+void main();
 void unload();
+
+extern HMODULE hCurrentModule;

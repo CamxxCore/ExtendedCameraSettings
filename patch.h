@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iterator>
+
 template <typename T>
 struct patch
 {

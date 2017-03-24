@@ -1,18 +1,21 @@
 #pragma once
 
+#include <sstream>
+
 class CConfig
 {
 public:
 	CConfig(const char* fileName) {
-		char buffer[0x100];
 
-		GetCurrentDirectory(MAX_PATH, buffer);
+		TCHAR inBuf[0x100];
 
-		strcat_s(buffer, "\\");
+		GetCurrentDirectory(MAX_PATH, inBuf);
 
-		strcat_s(buffer, fileName);
+		strcat_s(inBuf, "\\");
 
-		strcpy_s(filename, sizeof(buffer), buffer);
+		strcat_s(inBuf, fileName);
+
+		strcpy_s(filename, 0x100, inBuf);
 	}
 
 	template <typename T>
@@ -20,30 +23,60 @@ public:
 	{
 		T result;
 
-		char buffer[0x100];
+		TCHAR inBuf[0x100];
 
-		GetPrivateProfileStringA(section, key, "error", buffer, sizeof(buffer), filename);
+		GetPrivateProfileString (TEXT(section),
+			                     TEXT(key),
+			                     TEXT("err"),
+			                     inBuf,
+			                     0x100,
+			                     TEXT(filename));
 
-		if (GetLastError() == 0x2 || !strcmp(buffer, "error")) return defaultValue;
+		if (GetLastError() != ERROR_SUCCESS|| !strcmp(inBuf, "err"))
+		{
+			return defaultValue;
+		}
+
+		std::stringstream sstream;
 
 		if (typeid(T) == typeid(bool))
 		{
-			if (!strstr(buffer, "false"))
-				return (T) (bool) true;
-
-			return (T) (bool) false;
+			sstream << std::boolalpha << inBuf;
 		}
 
-		std::stringstream ss;
+		else
+		{
+			sstream << inBuf;
+		}
 
-		ss << buffer;
-		ss >> result;
+		sstream >> result;
 
 		return result;
 	}
 
-private:
+	template <typename T>
+	void set(const char * section, const char * key, T val)
+	{
+		std::stringstream sstream;
 
-	char filename[MAX_PATH];
+		if (typeid(T) == typeid(bool))
+		{
+			sstream << std::boolalpha << val;
+		}
+
+		else
+		{
+			sstream << val;
+		}
+
+		std::string strResult = sstream.str();
+		
+		WritePrivateProfileString (TEXT(section),
+			                       TEXT(key),
+			                       TEXT(strResult.c_str()),
+			                       filename);
+	}
+
+	TCHAR filename[MAX_PATH];
 };
 

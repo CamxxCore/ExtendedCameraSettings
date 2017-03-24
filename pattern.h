@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Psapi.h>
+
 class Pattern sealed
 {
 public:
