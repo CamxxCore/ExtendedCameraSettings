@@ -2,12 +2,12 @@
 
 void AddressPool::insert(std::string key, uintptr_t address)
 {
-	addressMap.insert(std::make_pair(key, address));
+	map.insert(std::make_pair(key, address));
 }
 
 uintptr_t & AddressPool::operator[] (std::string key)
 {
-	return addressMap[key];
+	return map[key];
 }
 
 void AddressMgr::clear()

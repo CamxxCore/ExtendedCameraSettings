@@ -4,11 +4,11 @@ template <typename T>
 class Hook
 {
 public:
-	Hook(uintptr_t addr, T func) : address(addr), function(func) { }
+	Hook(uintptr_t addr, T func) : address(addr), fn(func) { }
 	virtual ~Hook();
 	virtual void remove() = 0;
 	uintptr_t address;
-	T function;
+	T fn;
 };
 
 template <typename T>
@@ -28,7 +28,7 @@ public:
 template <typename T>
 void CallHook<T>::remove()
 {
-	*reinterpret_cast<int32_t*>(address + 1) = static_cast<int32_t>( (intptr_t)function - (intptr_t)address - 5 );
+	*reinterpret_cast<int32_t*>(address + 1) = static_cast<int32_t>( (intptr_t)fn - (intptr_t)address - 5 );
 }
 
 template <typename T>

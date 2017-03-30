@@ -53,25 +53,25 @@ enum eDynamicMenuAction
 	LowHi = 16
 };
 
-struct PauseMenuItemInfo
+struct CPauseMenuItem
 {
-	int menuLutIndex; // 0x0-0x4
+	int menuIndex; // 0x0-0x4
 	unsigned int textHash; //0x4-0x8
 	void * unkPtr; //0x8-0x10
 	short unkCount; //0x10-0x12
 	short unkCount1; //0x12-0x14
 	char pad0[0x4]; //0x14-0x18
-	char targetSettingIdx; // 0x18-0x19 Index of the setting that is changed when this item is invoked
+	unsigned char targetSettingIdx; // 0x18-0x19 Index of the setting that is changed when this item is invoked
 	char actionType; //0x19-0x1A i.e. slider, on_off etc.
 	char type; //0x1A-0x1B 1 = default button, 2 = dynamic 8 = immutable text block
 	char stateFlags; //0x1B-0x1C // 1 = disabled
 	char pad1[0x4];
 }; //sizeof=0x20
 
-struct PauseMenuInstance
+struct CPauseMenuInstance
 {
 	void * cmenuInstance; //0x0-0x8
-	PauseMenuItemInfo * items; //0x8-0x10
+	CPauseMenuItem * items; //0x8-0x10
 	short itemCount; //0x10-0x12
 	short maxItems; //0x12-0x14
 	char pad0[0x4]; //0x14-0x18
@@ -79,7 +79,7 @@ struct PauseMenuInstance
 	char pad1[0x10]; //0x20-0x30
 	const char * szMenuName; //0x30-0x38
 	char pad2[0x8]; //0x38-0x40
-	int menuLutIndex; //0x40-0x44
+	int menuIndex; //0x40-0x44
 	char pad3[0xC];
 }; //sizeof=0x50
 

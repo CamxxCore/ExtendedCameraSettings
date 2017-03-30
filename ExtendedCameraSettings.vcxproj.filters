@@ -5,9 +5,6 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AddressMgr.cpp" />
     <ClCompile Include="Hooking.cpp" />
-    <ClCompile Include="profileSettingsMgr.cpp">
-      <Filter>Game Classes</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdinc.h" />
@@ -20,15 +17,9 @@
     <ClInclude Include="AddressMgr.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="Hooking.h" />
-    <ClInclude Include="profileSettingsMgr.h">
-      <Filter>Game Classes</Filter>
-    </ClInclude>
     <ClInclude Include="resource.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <Filter Include="Game Classes">
-      <UniqueIdentifier>{b22a65d3-7b9c-41d9-8c27-35a0b3d93961}</UniqueIdentifier>
-    </Filter>
+    <ClInclude Include="logger.h" />
+    <ClInclude Include="utility.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ExtendedCameraSettings.rc" />

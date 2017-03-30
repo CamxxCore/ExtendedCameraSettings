@@ -1,12 +1,12 @@
-
 #pragma once
 
 class AddressMgr;
 
 extern AddressMgr g_addresses;
 
-#define __MAJOR_REV__ 1
-#define __MINOR_REV__ 0
+
+#define __MAJOR_REV__ 1.0
+#define __MINOR_REV__ .03
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -30,10 +30,13 @@ extern AddressMgr g_addresses;
 #include "inc/natives.h"
 #include "inc/main.h"
 
+#include "logger.h"
+#include "utility.h"
 #include "opcode.h"
 #include "pattern.h"
 #include "patch.h"
 #include "enums.h"
+
 #include "config.h"
 #include "types.h"
 #include "game.h"
@@ -42,13 +45,27 @@ extern AddressMgr g_addresses;
 
 #include "Hooking.h"
 
-#pragma region Game Includes
+inline void printToScreen(const char * fmt, ...)
+{
+	char inBuf[0x100];
 
-#include "profileSettingsMgr.h"
+	va_list va;
 
-#pragma endregion
+	va_start(va, fmt);
+
+	vsprintf_s(inBuf, fmt, va);
+
+	va_end(va);
+
+	char buffer[0x100];
+
+	sprintf_s(buffer, "~y~ExtendedCameraSettings~w~\n%s", inBuf);
+
+	notifyAboveMap(buffer);
+}
 
 void main();
+
 void unload();
 
 extern HMODULE hCurrentModule;

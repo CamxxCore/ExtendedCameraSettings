@@ -2,9 +2,8 @@
 
 class AddressPool
 {
-private:
-	std::map<std::string, uintptr_t> addressMap;
 public:
+	std::map<std::string, uintptr_t> map;
 	void insert(std::string key, uintptr_t address);
 	uintptr_t & operator[](std::string key);
 };

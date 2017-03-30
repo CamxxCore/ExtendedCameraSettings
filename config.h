@@ -25,19 +25,21 @@ public:
 
 		TCHAR inBuf[0x100];
 
-		GetPrivateProfileString (TEXT(section),
-			                     TEXT(key),
-			                     TEXT("err"),
-			                     inBuf,
-			                     0x100,
+		GetPrivateProfileString (TEXT(section), 
+			                     TEXT(key), 
+			                     NULL, 
+			                     inBuf, 
+			                     0x100, 
 			                     TEXT(filename));
 
-		if (GetLastError() != ERROR_SUCCESS|| !strcmp(inBuf, "err"))
+		if (GetLastError() != ERROR_SUCCESS || !inBuf)
 		{
 			return defaultValue;
 		}
 
 		std::stringstream sstream;
+
+		sstream.imbue(std::locale("en-us"));
 
 		if (typeid(T) == typeid(bool))
 		{
@@ -59,6 +61,8 @@ public:
 	{
 		std::stringstream sstream;
 
+		sstream.imbue(std::locale("en-us"));
+
 		if (typeid(T) == typeid(bool))
 		{
 			sstream << std::boolalpha << val;
@@ -69,11 +73,11 @@ public:
 			sstream << val;
 		}
 
-		std::string strResult = sstream.str();
+		std::string str = sstream.str();
 		
 		WritePrivateProfileString (TEXT(section),
 			                       TEXT(key),
-			                       TEXT(strResult.c_str()),
+			                       TEXT(str.c_str()),
 			                       filename);
 	}
 

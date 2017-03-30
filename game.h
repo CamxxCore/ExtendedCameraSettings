@@ -16,11 +16,11 @@ inline void showSubtitle(const char *  msg, int duration = 5000)
 {
 	UI::_SET_TEXT_ENTRY_2("CELL_EMAIL_BCON");
 
-	const int maxStringLength = 99;
+	const unsigned int maxStringLength = 99;
 
 	char subStr[maxStringLength];
 
-	for (int i = 0; i < strlen(msg); i += maxStringLength)
+	for (unsigned int i = 0; i < strlen(msg); i += maxStringLength)
 	{
 		memcpy_s(subStr, sizeof(subStr), &msg[i], min(maxStringLength - 1, strlen(msg) - i));
 
