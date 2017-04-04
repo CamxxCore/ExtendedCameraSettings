@@ -1,11 +1,11 @@
 #include "stdinc.h"
 
-void AddressPool::insert(std::string key, uintptr_t address)
+void AddressPool::insert(std::string key, MemAddr address)
 {
 	map.insert(std::make_pair(key, address));
 }
 
-uintptr_t & AddressPool::operator[] (std::string key)
+MemAddr & AddressPool::operator[](std::string key)
 {
 	return map[key];
 }
@@ -20,7 +20,7 @@ size_t AddressMgr::size()
 	return items.size();
 }
 
-void AddressMgr::insert(std::string key, std::string addressName, uintptr_t address)
+void AddressMgr::insert(std::string key, std::string addressName, MemAddr address)
 {
 	get(key)->insert(addressName, address);
 }

@@ -4,9 +4,8 @@ class AddressMgr;
 
 extern AddressMgr g_addresses;
 
-
 #define __MAJOR_REV__ 1.0
-#define __MINOR_REV__ .03
+#define __MINOR_REV__ .04
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -14,7 +13,7 @@ extern AddressMgr g_addresses;
 
 #define WriteFloat(a,b)(*(float*)a = (float)b)
 
-#define WriteBoolean(a,b)(*(bool*)a = (bool)b)
+#define WriteBool(a,b)(*(bool*)a = (bool)b)
 
 #include <windows.h>
 

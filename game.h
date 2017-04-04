@@ -12,7 +12,7 @@ inline void notifyAboveMap(char* message)
 	UI::_DRAW_NOTIFICATION(0, 1);
 }
 
-inline void showSubtitle(const char *  msg, int duration = 5000)
+inline void showSubtitle(const char * msg, int duration = 5000)
 {
 	UI::_SET_TEXT_ENTRY_2("CELL_EMAIL_BCON");
 
@@ -32,4 +32,14 @@ inline void showSubtitle(const char *  msg, int duration = 5000)
 	UI::_DRAW_SUBTITLE_TIMED(duration, 1);
 }
 
-
+template<typename T, typename F>
+inline void executeForAll(rage::pgCollection<T> collection, F&& fn)
+{
+	for (auto it = collection.begin(); it != collection.end(); it++)
+	{
+		if (it)
+		{
+			fn(it);
+		}
+	}
+}

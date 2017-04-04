@@ -5,6 +5,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="AddressMgr.cpp" />
     <ClCompile Include="Hooking.cpp" />
+    <ClCompile Include="MemAddr.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdinc.h" />
@@ -20,6 +21,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="utility.h" />
+    <ClInclude Include="MemAddr.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ExtendedCameraSettings.rc" />

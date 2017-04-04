@@ -41,7 +41,7 @@ class HookManager
 {
 public:
 	template <typename T>
-	static inline CallHook<T> *SetCall(uintptr_t address, T target)
+	static inline CallHook<T> * SetCall(uintptr_t address, T target)
 	{
 		T orig = reinterpret_cast<T>(*reinterpret_cast<int *>(address + 1) + (address + 5));
 

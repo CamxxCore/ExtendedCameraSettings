@@ -127,6 +127,36 @@ struct camFirstPersonShooterCameraMetadataRelativeAttachOrientationSettings
 	char pad1[0x3C];
 }; //sizeof=0x70
 
+struct camThirdPersonCameraMetadataBasePivotPosition
+{
+	char pad0[0x8];
+	bool bDisablePitchRotationZooming; // whether to disable camera pitch- relative zooming when pivoting around the entity.
+	char pad1[0x3]; //0x9-0xC
+	float fHighPitchZoomOutScale; //0xC-0x10 scale of zooming-out that occurs when the camera is pitched down looking at the vedhicle
+};
+
+struct camThirdPersonCameraMetadataVehicleOnTopOfVehicleCollisionSettings
+{
+	char pad0[0x1C];
+	float fLeftRotationClampLimit; //0x1C-0x20
+	float fRightRotationClampLimit; //0x20-0x24
+	float fDownRotationClampLimit; //0x20-0x24
+	float fUpRotationClampLimit; //0x20-0x24
+};
+
+
+class camFollowPedCameraMetadata : public camBaseCameraMetadata
+{
+public:
+	//(0x0-0x8 vftable)
+	char pad0[0x5C]; //0x8-0x64
+	bool bLerpCameraPivot; // if true, the camera will use linear interpolation when setting pivot values defined in 'camThirdPersonCameraMetadataBasePivotPosition'.
+	char pad1[0xA8];
+	bool bBoundingBoxRelativePivotIgnored; //0xB0-0xB1 whether to ignore bounding box dimensions when pivoting around the entity.
+	char pad2[0x18F]; //0xB1-0x240
+	camThirdPersonCameraMetadataVehicleOnTopOfVehicleCollisionSettings m_ontopOfVehicleCollisionSettings;
+};
+
 class camCinematicMountedCameraMetadata : public camBaseCameraMetadata
 {
 public:

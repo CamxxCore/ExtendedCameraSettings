@@ -28,22 +28,7 @@ inline void split(std::string str, std::string splitBy, std::vector<std::string>
 
 inline int FloatToScalar(float value, float min, float max)
 {
-	if (value < 0)
-	{
-		max += abs(value);
-		value = -value;
-		min = 0;
-	}
-
-	if (min < 0)
-	{
-		float diff = abs(min);
-		max += diff;
-		value += diff;
-		min = 0;
-	}
-
-	return (int)((10.0f - min) * (value - min) / (max - min));
+	return (int)((1.0f / (max - min)) * (value - min) * 10);
 }
 
 inline float ScalarToFloat(int scalar, float min, float max)

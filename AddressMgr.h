@@ -1,11 +1,13 @@
 #pragma once
 
+#include "MemAddr.h"
+
 class AddressPool
 {
 public:
-	std::map<std::string, uintptr_t> map;
-	void insert(std::string key, uintptr_t address);
-	uintptr_t & operator[](std::string key);
+	std::map<std::string, MemAddr> map;
+	void insert(std::string key, MemAddr address);
+	MemAddr & operator[](std::string key);
 };
 
 class AddressMgr
@@ -16,7 +18,7 @@ private:
 public:
 	void clear();
 	size_t size();
-	void insert(std::string category, std::string key, uintptr_t address);
+	void insert(std::string category, std::string key, MemAddr address);
 	AddressPool*& get(std::string category);
 	AddressPool*& getOrCreate(std::string category);
 	~AddressMgr();
