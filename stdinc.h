@@ -5,7 +5,7 @@ class AddressMgr;
 extern AddressMgr g_addresses;
 
 #define __MAJOR_REV__ 1.0
-#define __MINOR_REV__ .04
+#define __MINOR_REV__ .06
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 

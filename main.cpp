@@ -172,18 +172,18 @@ inline CPauseMenuInstance * lookupMenuForIndex(int menuIndex)
 {
 	for (auto it = g_activeMenuArray.begin(); it != g_activeMenuArray.end(); it++)
 	{
-		if (it && it->menuIndex == menuIndex)
+		if (it && it->menuId == menuIndex)
 		{
 			return it;
 		}
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 void patchFirstPersonShooterCameraMetadata(MemAddr baseAddress)
 {
-	AddressPool& addresses = (*g_addresses.get("firstPersonCamera"));
+	auto& addresses = (*g_addresses.get("firstPersonCamera"));
 
 	WriteFloat(baseAddress.add(addresses["fov"]).addr, g_scriptconfig.get<float>("OnFootCamera", "FOV", 45.0f));
 
@@ -210,9 +210,9 @@ void patchFirstPersonShooterCameraMetadata(MemAddr baseAddress)
 
 void patchCinematicMountedCameraMetadata(MemAddr baseAddress)
 {
-	AddressPool& addresses = (*g_addresses.get("inVehicleCamera"));
+	auto& addresses = (*g_addresses.get("inVehicleCamera"));
 
-	float fPitchValue = g_scriptconfig.get<float>("InVehicleCamera", "MinPitch", -10.0f);
+	auto fPitchValue = g_scriptconfig.get<float>("InVehicleCamera", "MinPitch", -10.0f);
 
 	WriteFloat(baseAddress.add(addresses["minPitch"]).addr, fPitchValue);
 
@@ -237,7 +237,7 @@ void patchCinematicMountedCameraMetadata(MemAddr baseAddress)
 
 void patchFollowVehicleCameraMetadata(MemAddr baseAddress)
 {
-	AddressPool& addresses = (*g_addresses.get("followVehicleCamera"));
+	auto& addresses = (*g_addresses.get("followVehicleCamera"));
 
 	WriteFloat(baseAddress.add(addresses["fov"]).addr, g_scriptconfig.get<float>("FollowVehicleCamera", "FOV", 50.0f));
 
@@ -258,7 +258,7 @@ void patchFollowVehicleCameraMetadata(MemAddr baseAddress)
 
 void patchFollowPedCameraMetadata(MemAddr baseAddress)
 {
-	AddressPool& addresses = (*g_addresses.get("followPedCamera"));
+	auto& addresses = (*g_addresses.get("followPedCamera"));
 
 	WriteFloat(baseAddress.add(addresses["minSpeedForShake"]).addr, g_scriptconfig.get<bool>("FollowPedCamera", "UseRunningShake", false) ? 0.5f : FLT_MAX);
 
@@ -274,19 +274,20 @@ T patchMetadataValue(eMetadataHash type, std::string key, T value)
 	{
 		if (!it) continue;
 
-		for (camMetadataRef * ref = *it; ref; ref = ref->pNext)
+		for (auto ref = *it; ref; ref = ref->pNext)
 		{
-			camBaseObjectMetadata * metadata = ref->pData;
+			auto metadata = ref->pData;
 
-			if (metadata && *(uintptr_t**)(metadata))
+			if (metadata && *reinterpret_cast<uintptr_t**>(metadata))
 			{
-				auto metadataTypeHash = *(Hash*)(metadata->getPsoStruct() + 8);
+				if (ref->nameHash == 2648018977) continue; // jet mounted camera
 
-				uintptr_t address = reinterpret_cast<uintptr_t>(metadata);
-
+				auto metadataTypeHash = *reinterpret_cast<Hash*>(metadata->getPsoStruct() + 8);
+		
 				if (metadataTypeHash == type)
 				{
-					*reinterpret_cast<T*>(address + (*g_addresses.get(g_metadataAddrMap[type]))[key]) = value;
+					*reinterpret_cast<T*>(
+						reinterpret_cast<uintptr_t>(metadata) + (*g_addresses.get(g_metadataAddrMap[type]))[key]) = value;
 				}
 			}
 		}
@@ -310,21 +311,22 @@ bool patchMetadataValues(eMetadataHash type, std::string format, const std::vect
 	{
 		if (!it) continue;
 
-		for (camMetadataRef * ref = *it; ref; ref = ref->pNext)
+		for (auto ref = *it; ref; ref = ref->pNext)
 		{
-			camBaseObjectMetadata * metadata = ref->pData;
+			auto metadata = ref->pData;
 
-			if (metadata && *(uintptr_t**)(metadata))
+			if (metadata && *reinterpret_cast<uintptr_t**>(metadata))
 			{
-				auto metadataTypeHash = *(DWORD*)(metadata->getPsoStruct() + 8);
+				if (ref->nameHash == 2648018977) continue; // jet mounted camera
 
-				uintptr_t address = reinterpret_cast<uintptr_t>(metadata);
+				auto metadataTypeHash = *reinterpret_cast<DWORD*>(metadata->getPsoStruct() + 8);
 
 				if (metadataTypeHash == type)
 				{
 					for (size_t i = 0; i < parameters.size(); i++)
 					{
-						*reinterpret_cast<T*>(address + (*g_addresses.get(g_metadataAddrMap[type]))[parameters[i]]) = args[i];
+						*reinterpret_cast<T*>(
+							reinterpret_cast<uintptr_t>(metadata) + (*g_addresses.get(g_metadataAddrMap[type]))[parameters[i]]) = args[i];
 					}
 				}
 			}
@@ -344,17 +346,19 @@ void patchMetadataGlobal()
 	{
 		if (!it) continue;
 
-		for (camMetadataRef * ref = *it; ref; ref = ref->pNext)
+		for (auto ref = *it; ref; ref = ref->pNext)
 		{
-			camBaseObjectMetadata * metadata = ref->pData;
+			auto metadata = ref->pData;
 
-			if (metadata && *(uintptr_t**)(metadata))
+			if (metadata && *reinterpret_cast<uintptr_t**>(metadata))
 			{
-				char * psoStruct = metadata->getPsoStruct();
+				if (ref->nameHash == 2648018977) continue; // jet mounted camera
 
-				auto metadataTypeHash = *(DWORD*)(psoStruct + 8);
+				auto psoStruct = metadata->getPsoStruct();
 
-				uintptr_t address = reinterpret_cast<uintptr_t>(metadata);
+				auto metadataTypeHash = *reinterpret_cast<DWORD*>(psoStruct + 8);
+
+				auto address = MemAddr(metadata);
 
 				switch (metadataTypeHash)
 				{
@@ -370,6 +374,9 @@ void patchMetadataGlobal()
 				case eCamFollowPedCameraMetadata:
 					patchFollowPedCameraMetadata(address);
 					break;
+				default:
+					g_logfile.write("patchMetadataGlobal(): Invalid metadata type. Exiting...");
+					return;
 				}
 			}
 		}
@@ -386,7 +393,7 @@ void setupMenuItem(CPauseMenuItem * item, std::string gxtAlias, std::string text
 	item->menuIndex = menuIndex;
 	item->type = type;
 	item->actionType = actionType;
-	item->targetSettingIdx = (unsigned char)settingIdx;
+	item->targetSettingIdx = static_cast<unsigned char>(settingIdx);
 	item->stateFlags = stateFlags;
 
 	g_logfile.write("setupMenuItem(): Populating item with type '%d' action '%d' GXT alias \"%s\" display name \"%s\"",
@@ -400,36 +407,36 @@ void addPauseMenuItems()
 {
 	g_logfile.write("addPauseMenuItems(): Begin add menu items...");
 
-	int const cameraSettingsLutIdx = 136;
+	auto const cameraSettingsLutIdx = 136;
 
 	g_logfile.write("addPauseMenuItems(): Performing lookup for menu index (%d)...", cameraSettingsLutIdx);
 
-	CPauseMenuInstance * pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
+	auto pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
 
 	auto newCount = pMenu->itemCount + kMenuItemsCount;
 
 	auto newSize = newCount * sizeof(CPauseMenuItem);
 
-	CPauseMenuItem * newItemArray = new CPauseMenuItem[newCount];
+	auto newItemArray = new CPauseMenuItem[newCount];
 
 	memcpy_s(newItemArray, newSize, pMenu->items, pMenu->itemCount * sizeof(CPauseMenuItem));
 
 	// overwrite the reset button since we will move it to the bottom later..
-	int itemIdx = pMenu->itemCount - 1;
+	auto itemIdx = pMenu->itemCount - 1;
 
 	// hijack the last 50 settings indices with the hope that 
 	// rockstar won't add more than 15 new settings in the future.. (max is 255 or CHAR_MAX)
-	int targetSettingIdx = 200;
+	auto targetSettingIdx = 237;
 
 	// add menu settings (kMenuItemsCount needs to be updated to reflect changes made here)
 
 	#pragma region FP Use Reticle
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXYZ", "First Person Always Use Reticle", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXYZ", "First Person Always Use Reticle", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		patchMetadataValue<bool>(eMetadataHash::eCamFirstPersonShooterCameraMetadata, "useReticle", value != 0);
+		patchMetadataValue<bool>(eCamFirstPersonShooterCameraMetadata, "useReticle", value != 0);
 
 		g_scriptconfig.set<bool>("OnFootCamera", "AlwaysUseReticle", value != 0);
 
@@ -439,42 +446,41 @@ void addPauseMenuItems()
 
 	#pragma region FP Max Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZZY", "First Person Min Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZZY", "First Person Min Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
+		                                                                       auto realValue = -ScalarToFloat(value, 40.0f, 80.0f);
 
-		float realValue = -ScalarToFloat(value, 40.0f, 80.0f);
-
-		patchMetadataValue<float>(eMetadataHash::eCamFirstPersonShooterCameraMetadata, "minPitch", realValue);
+		patchMetadataValue<float>(eCamFirstPersonShooterCameraMetadata, "minPitch", realValue);
 
 		g_scriptconfig.set<float>("OnFootCamera", "MinPitch", realValue);
 
-	}, (int)min(FloatToScalar(-g_scriptconfig.get<float>("OnFootCamera", "MinPitch", -60.0f), 40.0f, 80.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(-g_scriptconfig.get<float>("OnFootCamera", "MinPitch", -60.0f), 40.0f, 80.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region FP Min Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYYY", "First Person Max Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYYY", "First Person Max Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
 		float realValue = ScalarToFloat(value, 40.0f, 80.0f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFirstPersonShooterCameraMetadata, "maxPitch", realValue);
+		patchMetadataValue<float>(eCamFirstPersonShooterCameraMetadata, "maxPitch", realValue);
 
 		g_scriptconfig.set<float>("OnFootCamera", "MaxPitch", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("OnFootCamera", "MaxPitch", 60.0f), 40.0f, 80.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("OnFootCamera", "MaxPitch", 60.0f), 40.0f, 80.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPP Running Shake
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZYY", "Third Person Running Shake", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZYY", "Third Person Running Shake", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
-		patchMetadataValue<float>(eMetadataHash::eCamFollowPedCameraMetadata, "minSpeedForShake", value != 0 ? 0.5f : FLT_MAX);
+		patchMetadataValue<float>(eCamFollowPedCameraMetadata, "minSpeedForShake", value != 0 ? 0.5f : FLT_MAX);
 
 		g_scriptconfig.set<bool>("FollowPedCamera", "UseRunningShake", value != 0);
 	}, g_scriptconfig.get<bool>("FollowPedCamera", "UseRunningShake", false), 1)));
@@ -483,70 +489,70 @@ void addPauseMenuItems()
 
 	#pragma region TPP Max Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXXX", "Third Person Min Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXXX", "Third Person Min Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = -ScalarToFloat(value, 50.0f, 90.0f);
+		auto realValue = -ScalarToFloat(value, 50.0f, 90.0f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowPedCameraMetadata, "minPitch", realValue);
+		patchMetadataValue<float>(eCamFollowPedCameraMetadata, "minPitch", realValue);
 
 		g_scriptconfig.set<float>("FollowPedCamera", "MinPitch", realValue);
 
-	}, (int)min(FloatToScalar(-g_scriptconfig.get<float>("FollowPedCamera", "MinPitch", -70.0f), 50.0f, 90.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(-g_scriptconfig.get<float>("FollowPedCamera", "MinPitch", -70.0f), 50.0f, 90.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPP Min Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYXY", "Third Person Max Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYXY", "Third Person Max Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = ScalarToFloat(value, 1.0f, 89.0f);
+		auto realValue = ScalarToFloat(value, 1.0f, 89.0f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowPedCameraMetadata, "maxPitch", realValue);
+		patchMetadataValue<float>(eCamFollowPedCameraMetadata, "maxPitch", realValue);
 
 		g_scriptconfig.set<float>("FollowPedCamera", "MaxPitch", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("FollowPedCamera", "MaxPitch", 45.0f), 1.0f, 89.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("FollowPedCamera", "MaxPitch", 45.0f), 1.0f, 89.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region FPV FOV
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXYY", "First Person Vehicle Field of View", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXYY", "First Person Vehicle Field of View", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = ScalarToFloat(value, 30.0f, 70.0f);
+		auto realValue = ScalarToFloat(value, 30.0f, 70.0f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamCinematicMountedCameraMetadata, "fov", realValue);
+		patchMetadataValue<float>(eCamCinematicMountedCameraMetadata, "fov", realValue);
 
 		g_scriptconfig.set<float>("InVehicleCamera", "FOV", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("InVehicleCamera", "FOV", 50.0f), 30.0f, 70.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("InVehicleCamera", "FOV", 50.0f), 30.0f, 70.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region FPV Vertical Origin
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYXX", "First Person Vehicle Vertical Origin", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYXX", "First Person Vehicle Vertical Origin", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
-		float realValue = ScalarToFloat(value, -0.05f, 0.05f);
+		auto realValue = ScalarToFloat(value, -0.05f, 0.05f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamCinematicMountedCameraMetadata, "relativeOffsetZ", realValue);
+		patchMetadataValue<float>(eCamCinematicMountedCameraMetadata, "relativeOffsetZ", realValue);
 
 		g_scriptconfig.set<float>("InVehicleCamera", "RelativeOffsetZ", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("InVehicleCamera", "RelativeOffsetZ", 0.0f), -0.05f, 0.05f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("InVehicleCamera", "RelativeOffsetZ", 0.0f), -0.05f, 0.05f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region FPV Switch In Water
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZY", "First Person Vehicle Switch In Water", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZY", "First Person Vehicle Switch In Water", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 		value ? g_cinematicCameraEnterWaterPatch1.remove() : g_cinematicCameraEnterWaterPatch1.install();
@@ -559,7 +565,7 @@ void addPauseMenuItems()
 
 	#pragma region FPV Switch On Desroyed
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXX", "First Person Vehicle Switch on Destroyed", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXX", "First Person Vehicle Switch on Destroyed", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 		value ? g_cinematicCameraEnterWaterPatch2.remove() : g_cinematicCameraEnterWaterPatch2.install();
@@ -572,11 +578,11 @@ void addPauseMenuItems()
 
 	#pragma region FPV Min Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZZX", "First Person Vehicle Min Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZZX", "First Person Vehicle Min Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = -ScalarToFloat(value, -25.0f, 55.0f);
+		auto realValue = -ScalarToFloat(value, -25.0f, 55.0f);
 
 		patchMetadataValues<float>(eCamCinematicMountedCameraMetadata, "minPitch;minPitchOverride", std::vector<float>(2, realValue));
 
@@ -588,11 +594,11 @@ void addPauseMenuItems()
 
 	#pragma region FPV Max Pitch Limit
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYZX", "First Person Vehicle Max Pitch Angle", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMYZX", "First Person Vehicle Max Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = ScalarToFloat(value, -25.0f, 55.0f);
+		auto realValue = ScalarToFloat(value, -25.0f, 55.0f);
 
 		patchMetadataValues<float>(eCamCinematicMountedCameraMetadata, "maxPitch;maxPitchOverride", std::vector<float>(2, realValue));
 
@@ -604,27 +610,27 @@ void addPauseMenuItems()
 
 	#pragma region TPV Field Of Vieww
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZZ", "Third Person Vehicle Field of View", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZZ", "Third Person Vehicle Field of View", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = ScalarToFloat(value, 30.0f, 70.0f);// 30.0f + (value * 4);
+		auto realValue = ScalarToFloat(value, 30.0f, 70.0f);// 30.0f + (value * 4);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata, "fov", realValue);
+		patchMetadataValue<float>(eCamFollowVehicleCameraMetadata, "fov", realValue);
 
 		g_scriptconfig.set<float>("FollowVehicleCamera", "FOV", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "FOV", 50.0f), 30.0f, 70.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "FOV", 50.0f), 30.0f, 70.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPV Auto Center
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXXY", "Third Person Vehicle Auto Center", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXXY", "Third Person Vehicle Auto Center", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		patchMetadataValue<bool>(eMetadataHash::eCamFollowVehicleCameraMetadata, "autoCenterEnabled", value != 0);
+		patchMetadataValue<bool>(eCamFollowVehicleCameraMetadata, "autoCenterEnabled", value != 0);
 
 		g_scriptconfig.set<bool>("FollowVehicleCamera", "EnableAutoCenter", value != 0);
 
@@ -634,56 +640,56 @@ void addPauseMenuItems()
 
 	#pragma region TPV Follow Distance
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZX", "Third Person Vehicle Follow Distance", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZX", "Third Person Vehicle Follow Distance", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		float realValue = ScalarToFloat(value, -0.925f, 3.075f);// ((2.15f / 10.0f) * value);
+		auto realValue = ScalarToFloat(value, -0.925f, 3.075f);// ((2.15f / 10.0f) * value);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata, "followDistance", realValue);
+		patchMetadataValue<float>(eCamFollowVehicleCameraMetadata, "followDistance", realValue);
 
 		g_scriptconfig.set<float>("FollowVehicleCamera", "FollowDistance", realValue);
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "FollowDistance", 1.075f), -0.925f, 3.075f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "FollowDistance", 1.075f), -0.925f, 3.075f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPV Follow Height
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXZ", "Third Person Vehicle Pivot Scale", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXZ", "Third Person Vehicle Pivot Scale", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
-		float realValue = ScalarToFloat(value, 0, 2.0f);
+		auto realValue = ScalarToFloat(value, 0, 2.0f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata, "pivotScale", realValue);
+		patchMetadataValue<float>(eCamFollowVehicleCameraMetadata, "pivotScale", realValue);
 
 		g_scriptconfig.set<float>("FollowVehicleCamera", "PivotScale", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "PivotScale", 1.0f), 0.0f, 2.0f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "PivotScale", 1.0f), 0.0f, 2.0f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPV Horizontal Origin
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXY", "Third Person Vehicle Horizontal Origin", 51, 2, eDynamicMenuAction::Slider, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZXY", "Third Person Vehicle Horizontal Origin", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
-		float realValue = ScalarToFloat(value, -0.5f, 0.5f);
+		auto realValue = ScalarToFloat(value, -0.5f, 0.5f);
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata, "pivotOffset", realValue);
+		patchMetadataValue<float>(eCamFollowVehicleCameraMetadata, "pivotOffset", realValue);
 
 		g_scriptconfig.set<float>("FollowVehicleCamera", "PivotOffsetX", realValue);
 
-	}, (int)min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "PivotOffsetX", 0.0f) , -0.5f, 0.5f), 10.0f), 5)));
+	}, int(min(FloatToScalar(g_scriptconfig.get<float>("FollowVehicleCamera", "PivotOffsetX", 0.0f) , -0.5f, 0.5f), 10.0f)), 5)));
 
 	#pragma endregion
 
 	#pragma region TPV High Speed Shake
 
-	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZYZ", "Third Person Vehicle High Speed Shake", 51, 2, eDynamicMenuAction::Toggle, targetSettingIdx, 0);
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZYZ", "Third Person Vehicle High Speed Shake", 51, 2, Toggle, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
 
-		patchMetadataValue<float>(eMetadataHash::eCamFollowVehicleCameraMetadata, "minSpeedForShake", value != 0 ? 40.0f : FLT_MAX);
+		patchMetadataValue<float>(eCamFollowVehicleCameraMetadata, "minSpeedForShake", value != 0 ? 40.0f : FLT_MAX);
 
 		g_scriptconfig.set<bool>("FollowVehicleCamera", "UseHighSpeedShake", value != 0);
 
@@ -704,12 +710,14 @@ void addPauseMenuItems()
 
 	pMenu->maxItems = itemIdx;
 
+	pMenu->scrollFlags &= 2; // add scroll bar
+
 	g_logfile.write("addPauseMenuItems(): Finished adding menu items!");
 }
 
 bool SetMenuSlot_Stub(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bSlotUpdate)
 {
-	if (settingIndex >= 200)
+	if (settingIndex >= 237)
 	{
 		auto it = g_customPrefs.find(settingIndex);
 
@@ -724,9 +732,9 @@ bool SetMenuSlot_Stub(int columnId, int slotIndex, int menuState, int settingInd
 
 void SetPauseMenuPreference_Stub(long long settingIndex, int value, unsigned int unk)
 {
-	if (settingIndex >= 200)
+	if (settingIndex >= 237)
 	{
-		int prefId = (int)settingIndex;
+		auto prefId = int(settingIndex);
 
 		auto it = g_customPrefs.find(prefId);
 
@@ -741,7 +749,7 @@ void SetPauseMenuPreference_Stub(long long settingIndex, int value, unsigned int
 		}
 	}
 
-	else g_setPauseMenuPreferenceFn->fn(settingIndex, value, unk);
+	g_setPauseMenuPreferenceFn->fn(settingIndex, value, unk);
 }
 
 void ResetCameraProfileSettings_Stub()
@@ -760,7 +768,7 @@ double getRemoteVersionInfo()
 {
 	TCHAR szFilename[MAX_PATH];
 
-	HRESULT hr = URLDownloadToCacheFileA(NULL, "http://www.camx.me/gtav/ecs/version.txt", szFilename, MAX_PATH, 0, NULL);
+	auto hr = URLDownloadToCacheFileA(NULL, "http://www.camx.me/gtav/ecs/version.txt", szFilename, MAX_PATH, 0, NULL);
 
 	if (SUCCEEDED(hr))
 	{
@@ -853,7 +861,7 @@ void scriptMain()
 {
 	while (true)
 	{
-		if ((*g_gameState) == eGameState::Playing)
+		if ((*g_gameState) == Playing)
 		{
 			doPatches();
 			break;
@@ -868,7 +876,7 @@ void main()
 	auto gameVersion = getGameVersion();
 
 	// invalid game version
-	if (gameVersion == eGameVersion::VER_UNK) return;
+	if (gameVersion == VER_UNK) return;
 
 	makeConfigFile();
 
@@ -937,7 +945,7 @@ void main()
 
 	result = *reinterpret_cast<int *>(result - 4) + result + 6;
 
-	g_metadataCollection = (rage::pgCollection<camMetadataRef*>*)((*reinterpret_cast<int *>(result + 3) + result - 1));
+	g_metadataCollection = reinterpret_cast<rage::pgCollection<camMetadataRef*>*>((*reinterpret_cast<int *>(result + 3) + result - 1));
 
 	result = Pattern((BYTE*)"\x0F\xB7\x54\x51\x00", "xxxx?").get();
 
@@ -952,7 +960,7 @@ void main()
 		return;
 	}
 
-	g_activeMenuArray = *(rage::pgCollection<CPauseMenuInstance>*)(*reinterpret_cast<int *>(result - 4) + result);
+	g_activeMenuArray = *reinterpret_cast<rage::pgCollection<CPauseMenuInstance>*>(*reinterpret_cast<int *>(result - 4) + result);
 
 	result = Pattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx").get(-0x5);
 
@@ -1042,7 +1050,7 @@ void main()
 
 	addPauseMenuItems();
 
-	if ((*g_gameState) == eGameState::Playing)
+	if ((*g_gameState) == Playing)
 	{
 		doPatches();
 	}
