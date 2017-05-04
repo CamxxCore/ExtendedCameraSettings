@@ -1,37 +1,17 @@
 #pragma once
 
-inline void split(std::string str, std::string splitBy, std::vector<std::string>& tokens)
+class Utility
 {
-	tokens.push_back(str);
-	size_t splitAt;
+public:
+	static HMODULE GetActiveModule();
 
-	size_t splitLen = splitBy.size();
+	static std::string GetModuleName(HMODULE hModule);
 
-	std::string frag;
+	static std::string GetWorkingDirectory();
 
-	while (true)
-	{
-		frag = tokens.back();
+	static std::string GetShortTimeString();
 
-		splitAt = frag.find(splitBy);
+	static bool FileExists(std::string fileName);
 
-		if (splitAt == std::string::npos)
-		{
-			break;
-		}
-
-		tokens.back() = frag.substr(0, splitAt);
-
-		tokens.push_back(frag.substr(splitAt + splitLen, frag.size() - (splitAt + splitLen)));
-	}
-}
-
-inline int FloatToScalar(float value, float min, float max)
-{
-	return (int)((1.0f / (max - min)) * (value - min) * 10);
-}
-
-inline float ScalarToFloat(int scalar, float min, float max)
-{
-	return ((max - min) * (scalar / 10.0f)) + min;
-}
+	static void SplitString(std::string str, std::string splitBy, std::vector<std::string>& tokens);
+};

@@ -19,7 +19,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#include "stdinc.h"
+#include "stdafx.h"
 
 // Size of each memory block. (= page size of VirtualAlloc)
 const uint64_t MEMORY_BLOCK_SIZE = 0x1000;
@@ -27,7 +27,7 @@ const uint64_t MEMORY_BLOCK_SIZE = 0x1000;
 // Max range for seeking a memory block. (= 1024MB)
 const uint64_t MAX_MEMORY_RANGE = 0x40000000;
 
-void *HookManager::AllocateFunctionStub(void *origin, void *function, int type)
+PVOID HookManager::AllocateFunctionStub(PVOID origin, PVOID function, int type)
 {
 	static void* g_currentStub = nullptr;
 

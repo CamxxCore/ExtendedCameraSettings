@@ -1,5 +1,5 @@
 
-#include "stdinc.h"
+#include "stdafx.h"
 
 BOOL APIENTRY DllMain(HMODULE hModule,
 	DWORD  ul_reason_for_call,
@@ -9,13 +9,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
-		hCurrentModule = hModule;
-		scriptRegister(hModule, main);
+		mainInit(hModule);
+		scriptRegister(hModule, scriptMain);
 		break;
 	case DLL_PROCESS_DETACH:
 		unload();
-		scriptUnregister(main);
+		scriptUnregister(scriptMain);
 	}
 	return TRUE;
 }
-

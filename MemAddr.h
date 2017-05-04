@@ -7,20 +7,7 @@ public:
 
 	MemAddr(uintptr_t address) : addr(address) {}
 
-	MemAddr(void * obj) :
-		MemAddr(reinterpret_cast<uintptr_t>(obj)) {}
-
-	operator uintptr_t();
-
-	MemAddr & operator=(const MemAddr &rhs);
-
-	MemAddr & operator=(const uintptr_t &rhs);
-
-	MemAddr & operator+=(const MemAddr &rhs);
-
-	MemAddr & operator+(const MemAddr &rhs);
-
-	MemAddr & operator+(const uintptr_t &rhs);
+	MemAddr(void * obj) : MemAddr(reinterpret_cast<uintptr_t>(obj)) {}
 
 	MemAddr add(MemAddr m) const
 	{
@@ -28,4 +15,6 @@ public:
 	}
 
 	uintptr_t addr;
+
+	operator uintptr_t();
 };

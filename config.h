@@ -83,4 +83,3 @@ public:
 
 	TCHAR filename[MAX_PATH];
 };
-

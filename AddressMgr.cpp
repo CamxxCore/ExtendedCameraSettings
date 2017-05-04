@@ -1,4 +1,4 @@
-#include "stdinc.h"
+#include "stdafx.h"
 
 void AddressPool::insert(std::string key, MemAddr address)
 {
