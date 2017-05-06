@@ -14,4 +14,6 @@ public:
 	static bool FileExists(std::string fileName);
 
 	static void SplitString(std::string str, std::string splitBy, std::vector<std::string>& tokens);
+
+	static void ToLower(std::string& str);
 };

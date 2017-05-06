@@ -11,7 +11,7 @@ typedef bool(*SetMenuSlot_t)(int columnId, int slotIndex, int menuState, int set
 
 typedef void(*ResetCameraProfileSettings_t)();
 
-typedef camBaseDirector* (*GetCamDirectorObjectByHash_t)(unsigned int * hashName);
+typedef camBaseDirector* (*GetCamDirectorFromPool_t)(unsigned int * hashName);
 
 HMODULE g_currentModule;
 
@@ -38,7 +38,7 @@ rage::pgCollection<camMetadataRef*> * g_metadataCollection;
 
 rage::pgCollection<CPauseMenuInstance> g_activeMenuArray;
 
-GetCamDirectorObjectByHash_t getCamDirectorObjectByHash;
+GetCamDirectorFromPool_t getCamDirectorFromPool;
 
 camBaseCamera * g_activeCamera;
 
@@ -48,17 +48,27 @@ static std::mutex g_textMutex;
 
 CConfig g_scriptconfig = CConfig("ExtendedCameraSettings.ini");
 
-const int kMenuItemsCount = 19;
+const int kMenuItemsCount = 18;
 
 bool bInitialized = false;
 
-bool bUseCameraIndependentSettings = false;
+bool bUseGlobalPresets = false,
+	 bAutoSaveLayouts = false,
+	 bShouldUpdatePresets = false,
+	 bVehicleCamActive = false,
+	 bUpdatingKeyboard = false;
 
 std::map<unsigned int, std::vector<CamMetadataPreset>> g_camPresets;
 
 std::map<int, CustomMenuPref> g_customPrefs;
 
 unsigned int g_modelId;
+
+Entity targetEntity;
+
+camBaseDirector * g_camGameplayDirector = nullptr;
+
+DWORD vkReloadPresets = VK_B, vkSaveLayout = VK_F11;
 
 std::map<int, std::string> g_dataFileTypeMap = {
 	{ CPT_BOOLEAN, "bool" },
@@ -77,57 +87,57 @@ std::map<eMetadataHash, std::string> g_metadataHashMap = {
 
 void addOffsetsForGameVersion(int gameVer)
 {
-#pragma region firstPersonCamera
+	#pragma region firstPersonCamera
 
 	auto offsets = g_addresses.getOrCreate("camFirstPersonShooterCameraMetadata");
 
-	offsets->insert("fov", 36);
-	offsets->insert("minPitch", 84);
-	offsets->insert("maxPitch", 88);
-	offsets->insert("altMinYaw", gameVer < v1_0_505_2_STEAM ? 696 : gameVer < v1_0_877_1_STEAM ? 712 : 760);
-	offsets->insert("altMaxYaw", gameVer < v1_0_505_2_STEAM ? 700 : gameVer < v1_0_877_1_STEAM ? 716 : 764);
-	offsets->insert("altMinPitch", gameVer < v1_0_505_2_STEAM ? 704 : gameVer < v1_0_877_1_STEAM ? 720 : 768);
-	offsets->insert("altMaxPitch", gameVer < v1_0_505_2_STEAM ? 708 : gameVer < v1_0_877_1_STEAM ? 724 : 772);
-	offsets->insert("alwaysUseReticle", 114);
-	offsets->insert("relativeOffsetX", gameVer < v1_0_505_2_STEAM ? 68 : 64);
-	offsets->insert("relativeOffsetY", offsets->map["relativeOffsetX"].add(4));
-	offsets->insert("relativeOffsetZ", offsets->map["relativeOffsetX"].add(8));
+	offsets->insert("fov", 36); //F3 44 0F 5C 48 ? F3 41 0F 59 F8 
+	offsets->insert("minPitch", 84); //F3 0F 10 40 ? F3 0F 59 05 ? ? ? ? F3 0F 11 87 ? ? ? ? 
+	offsets->insert("maxPitch", 88); //+4
+	offsets->insert("alwaysUseReticle", 114); //44 38 79 72
+	offsets->insert("viewOffsetX", 64); //F3 0F 10 4A ? F3 0F 10 42 ? 44 0F 29 ? ? ? ? ?
+	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
+	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
+	offsets->insert("altMinYaw", gameVer < v1_0_505_2_STEAM ? 696 : gameVer < v1_0_877_1_STEAM ? 712 : 760); //48 8B 81 ? ? ? ? EB E6
+	offsets->insert("altMaxYaw", offsets->map["altMinYaw"].add(4)); //+4
+	offsets->insert("altMinPitch", offsets->map["altMinYaw"].add(8)); //+8
+	offsets->insert("altMaxPitch", offsets->map["altMinYaw"].add(12)); //+C
 
 #pragma endregion
 
-#pragma region cinematicMountedCamera
+	#pragma region cinematicMountedCamera
 
 	offsets = g_addresses.getOrCreate("camCinematicMountedCameraMetadata");
 
-	offsets->insert("fov", gameVer < v1_0_877_1_STEAM ? 80 : 84);
-	offsets->insert("minPitch", gameVer < v1_0_505_2_STEAM ? 808 : gameVer < v1_0_877_1_STEAM ? 824 : gameVer < v1_0_944_2_STEAM ? 872 : 888);
-	offsets->insert("maxPitch", gameVer < v1_0_505_2_STEAM ? 812 : gameVer < v1_0_877_1_STEAM ? 828u : gameVer < v1_0_944_2_STEAM ? 876 : 892);
-	offsets->insert("minPitchExtended", gameVer < v1_0_505_2_STEAM ? 776 : gameVer < v1_0_877_1_STEAM ? 792 : gameVer < v1_0_944_2_STEAM ? 840 : 856);
-	offsets->insert("maxPitchExtended", gameVer < v1_0_505_2_STEAM ? 780 : gameVer < v1_0_877_1_STEAM ? 796 : gameVer < v1_0_944_2_STEAM ? 844 : 860);
-	offsets->insert("minSpeedForCorrect", gameVer < v1_0_505_2_STEAM ? 680 : gameVer < v1_0_877_1_STEAM ? 696 : gameVer < v1_0_944_2_STEAM ? 744 : 760);
-	offsets->insert("relativeOffsetX", gameVer < v1_0_877_1_STEAM ? 80 : 96);
-	offsets->insert("relativeOffsetY", offsets->map["relativeOffsetX"].add(4));
-	offsets->insert("relativeOffsetZ", offsets->map["relativeOffsetX"].add(8));
+	offsets->insert("fov", gameVer < v1_0_877_1_STEAM ? 80 : 84); //F3 0F 10 48 ? F3 0F 11 89 ? ? ? ?
+	offsets->insert("minPitch", gameVer < v1_0_505_2_STEAM ? 808 : gameVer < v1_0_877_1_STEAM ? 824 : gameVer < v1_0_944_2_STEAM ? 872 : 888); //F3 0F 10 ? ? ? ? ? 0F 2F D0 72 10 F3 0F 10 ? ? 03 00 00
+	offsets->insert("maxPitch", offsets->map["minPitch"].add(4));
+	offsets->insert("minPitchExt", gameVer < v1_0_505_2_STEAM ? 776 : gameVer < v1_0_877_1_STEAM ? 792 : gameVer < v1_0_944_2_STEAM ? 840 : 856); //F3 0F 59 87 ? ? ? ? F3 41 0F 59 C4 
+	offsets->insert("maxPitchExt", gameVer < v1_0_505_2_STEAM ? 780 : gameVer < v1_0_877_1_STEAM ? 796 : gameVer < v1_0_944_2_STEAM ? 844 : 860);
+	offsets->insert("minSpeedForAutoCorrect", gameVer < v1_0_505_2_STEAM ? 680 : gameVer < v1_0_877_1_STEAM ? 696 : gameVer < v1_0_944_2_STEAM ? 744 : 760); //0F 2F B0 ? ? ? ? 0F 82 ? 02 00 00
+	offsets->insert("viewOffsetX", gameVer < v1_0_877_1_STEAM ? 80 : 96);  //F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 0F 11 45 ? ? 84 ?
+	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
+	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
 
 #pragma endregion
 
-#pragma region followVehicleCamera
+	#pragma region followVehicleCamera
 
 	offsets = g_addresses.getOrCreate("camFollowVehicleCameraMetadata");
 
-	offsets->insert("fov", 48);
-	offsets->insert("highSpeedShakeSpeed", gameVer < v1_0_505_2_STEAM ? 1176 : gameVer < v1_0_944_2_STEAM ? 1192 : 1208);
-	offsets->insert("enableAutoCenter", gameVer < v1_0_505_2_STEAM ? 877 : gameVer < v1_0_944_2_STEAM ? 893 : 909); //F3 0F 10 8B ? ? ? ? F3 0F 11 44 24 ? F3 0F 10 83 ? ? ? ? F3 0F 5C CA
-	offsets->insert("autoCenterLerpScale", gameVer < v1_0_505_2_STEAM ? 892 : gameVer < v1_0_944_2_STEAM ? 908 : 924); //1011 //F3 0F 10 88 ? ? ? ? 73 06 
-	offsets->insert("followDistance", gameVer < v1_0_791_2_STEAM ? 312 : gameVer < v1_0_944_2_STEAM ? 320 : 328); // 350 312
-	offsets->insert("pivotScale", gameVer < v1_0_791_2_STEAM ? 164 : gameVer < v1_0_944_2_STEAM ? 172 : 180);
-	offsets->insert("pivotOffsetX", gameVer < v1_0_791_2_STEAM ? 232 : gameVer < v1_0_944_2_STEAM ? 240 : gameVer < v1_0_1011_1_STEAM ? 256 : 248); //48 8B 81 ? ? ? ? F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
+	offsets->insert("fov", 48); //F3 0F 59 48 ? 0F 2F C8 72 2C
+	offsets->insert("highSpeedShakeSpeed", gameVer < v1_0_505_2_STEAM ? 1176 : gameVer < v1_0_944_2_STEAM ? 1192 : 1208); //48 81 C7 ? ? ? ? 8B 6F 08 shakesettings+0x10
+	offsets->insert("enableAutoCenter", gameVer < v1_0_505_2_STEAM ? 877 : gameVer < v1_0_944_2_STEAM ? 893 : 909); //80 ? ? ? ? ? ? 75 14 48 8B 83 ? ? ? ? 
+	offsets->insert("autoCenterLerpScale", gameVer < v1_0_505_2_STEAM ? 892 : gameVer < v1_0_944_2_STEAM ? 908 : 924); //F3 0F 10 88 ? ? ? ? 73 06 
+	offsets->insert("followDistance", gameVer < v1_0_791_2_STEAM ? 312 : gameVer < v1_0_944_2_STEAM ? 320 : 328); //F3 0F 10 80 ? ? ? ? C3 4C 8B 81 ? ? ? ? 49 81 C0 ? ? ? ? 
+	offsets->insert("pivotScale", gameVer < v1_0_791_2_STEAM ? 164 : gameVer < v1_0_944_2_STEAM ? 172 : 180); //F3 0F 10 88 ? ? ? ? 0F 28 C1 C3 
+	offsets->insert("pivotOffsetX", gameVer < v1_0_791_2_STEAM ? 232 : gameVer < v1_0_944_2_STEAM ? 240 : gameVer < v1_0_1011_1_STEAM ? 256 : 248); //F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
 	offsets->insert("pivotOffsetY", offsets->map["pivotOffsetX"].add(4));
 	offsets->insert("pivotOffsetZ", offsets->map["pivotOffsetX"].add(8));
 
 #pragma endregion
 
-#pragma region followPedCamera
+	#pragma region followPedCamera
 
 	offsets = g_addresses.getOrCreate("camFollowPedCameraMetadata");
 
@@ -136,43 +146,19 @@ void addOffsetsForGameVersion(int gameVer)
 	offsets->insert("maxPitch", gameVer < v1_0_505_2_STEAM ? 584 : gameVer < v1_0_944_2_STEAM ? 600 : 616);
 
 #pragma endregion
+
+	#pragma region CVehicleModelInfo
+
+	offsets = g_addresses.getOrCreate("CVehicleModelInfo");
+
+	offsets->insert("thirdPersonCameraHash", gameVer < v1_0_505_2_STEAM ? 1120 : gameVer <  v1_0_791_2_STEAM ? 1168 : 1184);
+	offsets->insert("firstPersonCameraHash", offsets->map["thirdPersonCameraHash"].add(0xC));
+#pragma endregion
 }
 
-std::string getPresetValueString(CamMetadataPreset preset)
+void readPresetsFromFile(std::string filename)
 {
-	std::stringstream sstream;
-
-	switch (preset.type)
-	{
-	case CPT_BOOLEAN:
-		sstream << std::boolalpha << preset.value.enabled;
-		break;
-	case CPT_INTEGER:
-		sstream << preset.value.integer;
-		break;
-	case CPT_UINTEGER:
-		sstream << preset.value.unsignedInt;
-		break;
-	case CPT_FLOAT:
-		sstream << preset.value.fvalue;
-		break;
-	case CPT_DOUBLE:
-		sstream << preset.value.dvalue;
-		break;
-	default:
-		break;
-	}
-
-	return sstream.str();
-}
-
-void readXmlDataFileEntries(std::string filename)
-{
-	if (!Utility::FileExists(filename))
-	{
-		LOG("readXmlDataFileEntries(): File not found (%s)", filename.c_str());
-		return;
-	}
+	g_camPresets.clear();
 
 	tinyxml2::XMLDocument doc;
 
@@ -180,17 +166,39 @@ void readXmlDataFileEntries(std::string filename)
 
 	auto result = doc.LoadFile(filePath.c_str());
 
-	if (result != tinyxml2::XML_SUCCESS)
+	if (result != XML_SUCCESS)
 	{
-		LOG("readXmlDataFileEntries(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
-		return;
+		switch (result)
+		{
+		case XML_ERROR_FILE_NOT_FOUND:
+		{
+			LOG("Creating new document %s", filePath.c_str());
+			auto pRoot = doc.NewElement("cameraPresets");
+			doc.InsertFirstChild(pRoot);
+			doc.SaveFile(filePath.c_str());
+			break;
+		}
+
+		case XML_ERROR_FILE_READ_ERROR:
+			LOG("readPresetsFromFile(): Encountered a read error loading the file %s (%d)", filePath.c_str(), result);	
+			return;
+
+		case XML_ERROR_EMPTY_DOCUMENT:
+			LOG("readPresetsFromFile(): Found an xml file but it contains no text!");
+			return;
+
+		case XML_ERROR_FILE_COULD_NOT_BE_OPENED:
+		default:
+			LOG("readPresetsFromFile(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
+			return;
+		}
 	}
 
 	auto rootElement = doc.FirstChildElement("cameraPresets");
 
 	if (!rootElement)
 	{
-		LOG("writeXmlDataFileEntries(): No root element.");
+		LOG("readPresetsFromFile(): No root element.");
 		return;
 	}
 
@@ -200,24 +208,24 @@ void readXmlDataFileEntries(std::string filename)
 
 		std::vector<CamMetadataPreset> presets;
 
-		for (auto it = g_metadataHashMap.begin(); it != g_metadataHashMap.end(); it++)
+		for (auto it = g_metadataHashMap.begin(); it != g_metadataHashMap.end(); ++it)
 		{
 			auto element = XMLHelper::FirstElement(e, it->second);
 
 			if (!element) continue;
 
-			LOG("readXmlDataFileEntries(): Adding %s presets for model %s", it->second.c_str(), modelName);
+			LOG("Adding %s presets for model %s", it->second.c_str(), modelName);
 
 			for (auto p = element->FirstChildElement("Preset"); p != nullptr; p = p->NextSiblingElement("Preset"))
 			{
 				CamMetadataPreset preset;
 
 				preset.name = p->Attribute("name");
-
-				preset.metadataHash = (eMetadataHash)it->first;
+	
+				preset.metadataHash = static_cast<eMetadataHash>(it->first);
 
 				auto type = p->Attribute("type");
-
+				
 				auto value = p->GetText();
 
 				std::stringstream sstream;
@@ -264,11 +272,11 @@ void readXmlDataFileEntries(std::string filename)
 
 				presets.push_back(preset);
 
-				LOG("Added new preset with type: %s value: %s", type, value);
+				LOG("<Preset name=\"%s\" type=\"%s\">%s</Preset", preset.name.c_str(), type, value);
 			}
 		}
 
-		g_camPresets.insert(std::make_pair(parseHashString(modelName), presets));
+		g_camPresets.insert(make_pair(parseHashString(modelName), presets));
 	});
 }
 
@@ -276,7 +284,7 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 {
 	if (!Utility::FileExists(filename))
 	{
-		LOG("writeXmlDataFileEntries(): File not found (%s)", filename.c_str());
+		LOG("writePresetsToFile(): File not found (%s)", filename.c_str());
 		return;
 	}
 
@@ -286,9 +294,9 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 	auto result = doc.LoadFile(filePath.c_str());
 
-	if (result != tinyxml2::XML_SUCCESS)
+	if (result != XML_SUCCESS)
 	{
-		LOG("writeXmlDataFileEntries(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
+		LOG("writePresetsToFile(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
 		return;
 	}
 
@@ -296,7 +304,7 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 	if (!rootElement)
 	{
-		LOG("writeXmlDataFileEntries(): No root element.");
+		LOG("writePresetsToFile(): No root element.");
 		return;
 	}
 
@@ -307,22 +315,26 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 	if (!elem)
 	{
-		LOG("writeXmlDataFileEntries(): No entry found for hash. Create a new one...");
+		LOG("writePresetsToFile(): No entry found for hash. Create a new one...");
 
 		elem = doc.NewElement("camPreset");
 
 		auto subNode = doc.NewElement("modelName");
 
-		subNode->SetText(std::to_string(modelHash).c_str());
+		std::string modelName;
+
+		getVehicleModelName(modelHash, modelName);
+
+		subNode->SetText(modelName.c_str());
 
 		elem->LinkEndChild(subNode);
 
 		rootElement->LinkEndChild(elem);
 	}
 
-	LOG("writeXmlDataFileEntries(): Setting presets...");
+	LOG("writePresetsToFile(): Setting presets...");
 
-	for (auto it = presets.begin(); it != presets.end(); it++)
+	for (auto it = presets.begin(); it != presets.end(); ++it)
 	{
 		auto nameStr = g_metadataHashMap[it->metadataHash];
 
@@ -330,7 +342,7 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 		if (!childElem)
 		{
-			LOG("writeXmlDataFileEntries(): Element contains no %s node. Creating a new child node...", nameStr.c_str());
+			LOG("writePresetsToFile(): Element contains no %s node. Creating a new child node...", nameStr.c_str());
 
 			childElem = doc.NewElement(nameStr.c_str());
 
@@ -341,15 +353,14 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 		if (node)
 		{
-			LOG("writeXmlDataFileEntries(): Preset node exists. setting value...");
+			LOG("writePresetsToFile(): Preset node exists. setting value...");
 
 			node->SetText(it->toString().c_str());
 
 			continue;
 		}
 
-		else 
-			LOG("writeXmlDataFileEntries(): No preset node found. Creating a new one...");
+		LOG("writePresetsToFile(): No preset node found. Creating a new one...");
 
 		node = doc.NewElement("Preset");
 
@@ -399,182 +410,15 @@ inline CPauseMenuInstance * lookupMenuForIndex(int menuIndex)
 {
 	for (auto it = g_activeMenuArray.begin(); it != g_activeMenuArray.end(); it++)
 	{
-		if (it && it->menuId == menuIndex)
-		{
-			return it;
-		}
+		if (!it || it->menuId != menuIndex)
+			continue;
+		return it;
 	}
 
 	return nullptr;
 }
 
-void patchFirstPersonShooterCameraMetadata(MemAddr baseAddress)
-{
-	auto metadataName = g_metadataHashMap[eCamFirstPersonShooterCameraMetadata];
-
-	auto& addresses = (*g_addresses.get(metadataName));
-
-	WriteFloat(baseAddress.add(addresses["fov"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "FOV", 45.0f));
-
-	WriteFloat(baseAddress.add(addresses["minPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "MinPitch", -80.0f));
-
-	WriteFloat(baseAddress.add(addresses["maxPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "MaxPitch", 80.0f));
-
-	WriteFloat(baseAddress.add(addresses["altMinPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "AltMinPitch", -75.0f));
-
-	WriteFloat(baseAddress.add(addresses["altMaxPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "AltMaxPitch", -75.0f));
-
-	WriteFloat(baseAddress.add(addresses["altMinYaw"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "AltMinYaw", -45.0f));
-
-	WriteFloat(baseAddress.add(addresses["altMaxYaw"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "AltMaxYaw", 45.0f));
-
-	WriteBool(baseAddress.add(addresses["alwaysUseReticle"]).addr, g_scriptconfig.get<bool>(metadataName.c_str(), "AlwaysUseReticle", false));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetX"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetX", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetY"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetY", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetZ"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetZ", 0.0f));
-}
-
-void patchCinematicMountedCameraMetadata(MemAddr baseAddress)
-{
-	auto metadataName = g_metadataHashMap[eCamCinematicMountedCameraMetadata];
-
-	auto& addresses = (*g_addresses.get(metadataName));
-
-	auto fPitchValue = g_scriptconfig.get<float>(metadataName.c_str(), "MinPitch", -10.0f);
-
-	WriteFloat(baseAddress.add(addresses["minPitch"]).addr, fPitchValue);
-
-	WriteFloat(baseAddress.add(addresses["minPitchExtended"]).addr, fPitchValue);
-
-	fPitchValue = g_scriptconfig.get<float>(metadataName.c_str(), "MaxPitch", 15.0f);
-
-	WriteFloat(baseAddress.add(addresses["maxPitch"]).addr, fPitchValue);
-
-	WriteFloat(baseAddress.add(addresses["maxPitchExtended"]).addr, fPitchValue);
-
-	WriteFloat(baseAddress.add(addresses["fov"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "FOV", 50.0f));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetX"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetX", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetY"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetY", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["relativeOffsetZ"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "RelativeOffsetZ", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["minSpeedForCorrect"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "MinSpeedForCorrect", 20.0f));
-}
-
-void patchFollowVehicleCameraMetadata(MemAddr baseAddress)
-{
-	auto metadataName = g_metadataHashMap[eCamFollowVehicleCameraMetadata];
-
-	auto& addresses = (*g_addresses.get(metadataName));
-
-	WriteFloat(baseAddress.add(addresses["fov"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "FOV", 50.0f));
-
-	WriteFloat(baseAddress.add(addresses["pivotOffsetX"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "PivotOffsetX", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["pivotOffsetY"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "PivotOffsetY", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["pivotOffsetZ"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "PivotOffsetZ", 0.0f));
-
-	WriteFloat(baseAddress.add(addresses["highSpeedShakeSpeed"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "HighSpeedShakeSpeed", 40.0f));
-
-	WriteBool(baseAddress.add(addresses["enableAutoCenter"]).addr, g_scriptconfig.get<bool>(metadataName.c_str(), "EnableAutoCenter", false));
-
-	WriteFloat(baseAddress.add(addresses["followDistance"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "FollowDistance", 1.0f));
-
-	WriteFloat(baseAddress.add(addresses["pivotScale"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "PivotScale", 1.075f));
-}
-
-void patchFollowPedCameraMetadata(MemAddr baseAddress)
-{
-	auto metadataName = g_metadataHashMap[eCamFollowPedCameraMetadata];
-
-	auto& addresses = (*g_addresses.get(metadataName));
-
-	WriteFloat(baseAddress.add(addresses["sprintShakeSpeed"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "SprintShakeSpeed", 0.5f));
-
-	WriteFloat(baseAddress.add(addresses["minPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "MinPitch", -70.0f));
-
-	WriteFloat(baseAddress.add(addresses["maxPitch"]).addr, g_scriptconfig.get<float>(metadataName.c_str(), "MaxPitch", 45.0f));
-}
-
-template <typename T>
-T patchMetadataValue(eMetadataHash type, std::string key, T value)
-{
-	auto addresses = g_addresses.get(g_metadataHashMap[type]);
-
-	if (!addresses) return NULL;
-
-	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
-	{
-		if (!it) continue;
-
-		for (auto ref = *it; ref; ref = ref->pNext)
-		{
-			auto metadata = ref->pData;
-
-			if (!metadata || !*reinterpret_cast<uintptr_t**>(metadata)) continue;
-
-			if (ref->nameHash == 2648018977) continue; // jet mounted camera
-
-			auto psoStruct = metadata->getPsoStruct();
-
-			if (*reinterpret_cast<DWORD*>(psoStruct + 8) != type) continue;
-
-			*reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(metadata) + addresses->map[key]) = value;
-		}
-	}
-
-	return value;
-}
-
-template <typename T>
-bool patchMetadataValues(eMetadataHash type, std::string format, const std::vector<T> & args)
-{
-	if (format.empty() || args.empty()) return false;
-
-	std::vector<std::string> parameters;
-
-	Utility::SplitString(format, ";", parameters);
-
-	if (parameters.size() != args.size()) return false;
-
-	auto addresses = g_addresses.get(g_metadataHashMap[type]);
-
-	if (!addresses) return false;
-
-	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
-	{
-		if (!it) continue;
-
-		for (auto ref = *it; ref; ref = ref->pNext)
-		{
-			auto metadata = ref->pData;
-
-			if (!metadata || !*reinterpret_cast<uintptr_t**>(metadata)) continue;
-
-			auto psoStruct = metadata->getPsoStruct();
-
-			if (!psoStruct) continue;
-
-			if (*reinterpret_cast<DWORD*>(psoStruct + 8) != type || ref->nameHash == 2648018977) continue;
-
-			for (size_t i = 0; i < parameters.size(); i++)
-			{
-				*reinterpret_cast<T*>(
-					reinterpret_cast<uintptr_t>(metadata) + addresses->map[parameters[i]]) = args[i];
-			}
-		}
-	}
-
-	return true;
-}
-
-camBaseObjectMetadata * getMetadataForHash(unsigned int hashName)
+camBaseObjectMetadata * getCamMetadataForHash(unsigned int hashName)
 {
 	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
 	{
@@ -588,98 +432,137 @@ camBaseObjectMetadata * getMetadataForHash(unsigned int hashName)
 				return ref->pData;
 		}
 	}
+
 	return nullptr;
-}
-
-void patchMetadataCollection()
-{
-	LOG("patchMetadataCollection(): Begin patching metadata collection...");
-
-	LOG("patchMetadataCollection(): %d metadata entries found.", g_metadataCollection->m_count);
-
-	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
-	{
-		if (!it) continue;
-
-		for (auto ref = *it; ref; ref = ref->pNext)
-		{
-			auto metadata = ref->pData;
-
-			if (metadata && *reinterpret_cast<uintptr_t**>(metadata))
-			{
-				if (ref->nameHash == 2648018977) continue; // jet mounted camera
-
-				auto psoStruct = metadata->getPsoStruct();
-
-				if (!psoStruct) continue;
-
-				auto metadataTypeHash = *reinterpret_cast<DWORD*>(psoStruct + 8);
-
-				auto address = MemAddr(metadata);
-
-				switch (metadataTypeHash)
-				{
-				case eCamCinematicMountedCameraMetadata:
-					patchCinematicMountedCameraMetadata(address);
-					break;
-				case eCamFirstPersonShooterCameraMetadata:
-					patchFirstPersonShooterCameraMetadata(address);
-					break;
-				case eCamFollowVehicleCameraMetadata:
-					patchFollowVehicleCameraMetadata(address);
-					break;
-				case eCamFollowPedCameraMetadata:
-					patchFollowPedCameraMetadata(address);
-					break;
-				}
-			}
-		}
-	}
-
-	LOG("patchMetadataCollection(): Finished patching with no error.");
 }
 
 void setupMenuItem(CPauseMenuItem * item, std::string gxtAlias, std::string text, int menuIndex, int type, int actionType, int settingIdx, int stateFlags)
 {
-	memset(item, 0x00, sizeof(CPauseMenuItem));
-
 	item->textHash = addGxtEntry(gxtAlias, text);
 	item->menuIndex = menuIndex;
 	item->type = type;
 	item->actionType = actionType;
 	item->targetSettingIdx = static_cast<unsigned char>(settingIdx);
 	item->stateFlags = stateFlags;
-
-	LOG("setupMenuItem(): Populating item with type '%d' action '%d' GXT alias \"%s\" display name \"%s\"", type, actionType, gxtAlias.c_str(), text.c_str());
 }
 
-void setCamPreset(CamMetadataPreset& preset)
+void saveCamPresets()
 {
-	if (bUseCameraIndependentSettings)
+	auto keyValue = bUseGlobalPresets ? 0 : g_modelId;
+
+	auto presets = g_camPresets.find(keyValue);
+
+	if (presets == g_camPresets.end()) return;
+
+	writePresetsToFile("CameraPresets.xml", keyValue, presets->second);
+
+	if (bVehicleCamActive && !bUseGlobalPresets)
 	{
-		auto presets = g_camPresets[g_modelId];
+		auto szDisplayName = VEHICLE::GET_DISPLAY_NAME_FROM_VEHICLE_MODEL(keyValue);
 
-		auto it = std::find_if(presets.begin(), presets.end(), 
-			[&](const CamMetadataPreset&v) { 
-			return preset.metadataHash == v.metadataHash && preset.name == v.name; });
+		printToScreen("Saved settings for %s.", UI::_GET_LABEL_TEXT(szDisplayName));
+	}
 
-		if (it != presets.end())
-		{
-			*it = preset;
-		}
+	else printToScreen("Camera settings saved.");
+}
 
-		else 
-			g_camPresets[g_modelId].push_back(preset);
-
-		writePresetToFile("CameraPresets.xml", g_modelId,  preset);
+bool checkCamPresetKey(eMetadataHash type, unsigned int * newKeyValue)
+{
+	if (bUseGlobalPresets)
+	{
+		*newKeyValue = 0;
 	}
 
 	else
 	{
-		g_scriptconfig.set<const char*>(g_metadataHashMap[preset.metadataHash].c_str(), 
-			preset.name.c_str(), 
-			preset.toString().c_str());
+		if (bVehicleCamActive && (type == eCamFollowPedCameraMetadata ||
+			type == eCamFirstPersonShooterCameraMetadata))
+		{
+			*newKeyValue = ENTITY::GET_ENTITY_MODEL(PLAYER::PLAYER_PED_ID());
+			return false;
+		}
+
+		if (!bVehicleCamActive && (type == eCamFollowVehicleCameraMetadata ||
+			type == eCamCinematicMountedCameraMetadata))
+		{
+			// set global vehicle presets if we aren't sitting in a vehicle.
+			*newKeyValue = 0;
+			return false;
+		}
+
+		*newKeyValue = g_modelId;
 	}
+
+	return true;
+}
+
+bool getCamPreset(eMetadataHash eType, std::string& name, CamMetadataPreset * preset)
+{
+	unsigned int keyValue;
+
+	checkCamPresetKey(eType, &keyValue);
+
+	auto items = &g_camPresets[keyValue];
+
+	std::vector<CamMetadataPreset>::iterator it = std::find_if(items->begin(), items->end(),
+		[&eType, &name](const CamMetadataPreset&p) {
+		return eType == p.metadataHash && name == p.name; });
+
+	if (it == items->end())
+		return false;
+
+	LOG("getCamPreset(): Found existing preset %s", it->name.c_str());
+
+	*preset = *it;
+
+	return true;
+}
+
+void setCamPresetForKey(unsigned int hashKey, CamMetadataPreset& preset, bool writeToFile)
+{
+	auto items = &g_camPresets[hashKey];
+
+	auto it = std::find_if(items->begin(), items->end(),
+		[&preset](const CamMetadataPreset&p) {
+		return preset.metadataHash == p.metadataHash && preset.name == p.name; });
+
+	if (it != items->end())
+	{
+		it->value = preset.value;
+	}
+
+	else 
+		items->push_back(preset);
+
+	if (!writeToFile) return;
+
+	writePresetToFile("CameraPresets.xml", hashKey, preset);
+}
+
+void setCamPreset(CamMetadataPreset& preset)
+{
+	unsigned int keyValue;
+
+	if (checkCamPresetKey(preset.metadataHash, &keyValue))
+		bShouldUpdatePresets = true;
+
+	setCamPresetForKey(keyValue, preset, bAutoSaveLayouts);
+}
+
+float getPresetValueFloat(eMetadataHash type, std::string name, float defaultValue)
+{
+	CamMetadataPreset p;
+	if (!getCamPreset(type, name, &p))
+		return defaultValue;
+	return p.value.fvalue;
+}
+
+bool getPresetValueBool(eMetadataHash type, std::string name, bool defaultValue)
+{
+	CamMetadataPreset p;
+	if (!getCamPreset(type, name, &p))
+		return defaultValue;
+	return p.value.enabled;
 }
 
 void addPauseMenuItems()
@@ -723,7 +606,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, g_scriptconfig.get<bool>("eCamFirstPersonShooterCameraMetadata", "AlwaysUseReticle", false), 0)));
+	}, int(getPresetValueBool(eCamFirstPersonShooterCameraMetadata, "alwaysUseReticle", false)), 0)));
 
 #pragma endregion
 
@@ -732,7 +615,6 @@ void addPauseMenuItems()
 	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZZY", "First Person Min Pitch Angle", 51, 2, Slider, targetSettingIdx, 0);
 
 	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
-	//	patchMetadataValue<float>(eCamFirstPersonShooterCameraMetadata, "minPitch", value);
 
 		CamMetadataPreset p;
 		p.metadataHash = eCamFirstPersonShooterCameraMetadata;
@@ -742,7 +624,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(-g_scriptconfig.get<float>("eCamFirstPersonShooterCameraMetadata", "MinPitch", -60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(-getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "minPitch", -60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -760,7 +642,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("eCamFirstPersonShooterCameraMetadata", "MaxPitch", 60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "maxPitch", 60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -778,7 +660,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(g_scriptconfig.get<float>("camFollowPedCameraMetadata", "sprintShakeSpeed", 0.5) != FLT_MAX), 1)));
+	}, int(getPresetValueFloat(eCamFollowPedCameraMetadata, "sprintShakeSpeed", 0.5f) != FLT_MAX), 1)));
 
 #pragma endregion
 
@@ -796,7 +678,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(-g_scriptconfig.get<float>("camFollowPedCameraMetadata", "MinPitch", -70.0f), 50.0f, 90.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(-getPresetValueFloat(eCamFollowPedCameraMetadata, "minPitch", -70.0f), 50.0f, 90.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -814,7 +696,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camFollowPedCameraMetadata", "MaxPitch", 45.0f), 1.0f, 89.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "maxPitch", 45.0f), 0.0f, 90.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -832,7 +714,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camCinematicMountedCameraMetadata", "FOV", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -844,13 +726,13 @@ void addPauseMenuItems()
 
 		CamMetadataPreset p;
 		p.metadataHash = eCamCinematicMountedCameraMetadata;
-		p.name = "relativeOffsetZ";
+		p.name = "viewOffsetZ";
 		p.type = CPT_FLOAT;
 		p.value.fvalue = Math::FromToRange(value, 0.0f, 10.0f, -0.05f, 0.05f);
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camCinematicMountedCameraMetadata", "RelativeOffsetZ", 0.0f), -0.05f, 0.05f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "viewOffsetZ", 0.0f), -0.05f, 0.05f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -890,13 +772,13 @@ void addPauseMenuItems()
 		p.metadataHash = eCamCinematicMountedCameraMetadata;
 		p.name = "minPitch";
 		p.type = CPT_FLOAT;
-		p.value.fvalue = Math::FromToRange(value, 0.0f, 10.0f, -25.0f, 55.0f);
+		p.value.fvalue = -Math::FromToRange(value, 0.0f, 10.0f, -30.0f, 50.0f);
 
 		setCamPreset(p);
 
-		p.name = "minPitchExtended";
+		p.name = "minPitchExt";
 		setCamPreset(p);
-	}, int(Math::FromToRange(-g_scriptconfig.get<float>("camCinematicMountedCameraMetadata", "MinPitch", -15.0f), -25.0, 55.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(-getPresetValueFloat(eCamCinematicMountedCameraMetadata, "minPitch", -10.0f), -30.0, 50.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -914,9 +796,9 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-		p.name = "maxPitchExtended";
+		p.name = "maxPitchExt";
 		setCamPreset(p);
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camCinematicMountedCameraMetadata", "MaxPitch", 15.0f), -25.0, 55.0, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "maxPitch", 15.0f), -25.0, 55.0, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -934,7 +816,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camFollowVehicleCameraMetadata", "FOV", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -953,7 +835,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, g_scriptconfig.get<bool>("camFollowVehicleCameraMetadata", "EnableAutoCenter", false), 1)));
+	}, getPresetValueBool(eCamFollowVehicleCameraMetadata, "enableAutoCenter", true), 1)));
 
 #pragma endregion
 
@@ -971,7 +853,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camFollowVehicleCameraMetadata", "FollowDistance", 1.075f), -0.925f, 3.075f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "followDistance", 1.075f), -0.925f, 3.075f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -989,7 +871,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camFollowVehicleCameraMetadata", "PivotScale", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotScale", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -1007,7 +889,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(g_scriptconfig.get<float>("camFollowVehicleCameraMetadata", "PivotOffsetX", 0.0f), -0.5f, 0.5f, 0.0f, 10.0f)), 5)));
+	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotOffsetX", 0.0f), -0.5f, 0.5f, 0.0f, 10.0f)), 5)));
 
 #pragma endregion
 
@@ -1015,7 +897,7 @@ void addPauseMenuItems()
 
 	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMZYZ", "Third Person Vehicle High Speed Shake", 51, 2, Toggle, targetSettingIdx, 0);
 
-	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
+	g_customPrefs.insert(std::make_pair(targetSettingIdx, CustomMenuPref([](int settingIndex, int value) {
 
 		CamMetadataPreset p;
 		p.metadataHash = eCamFollowVehicleCameraMetadata;
@@ -1025,7 +907,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(g_scriptconfig.get<float>("camFollowVehicleCameraMetadata", "HighSpeedShakeSpeed", 40.0f) != FLT_MAX), 1)));
+	}, int(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "highSpeedShakeSpeed", 40.0f) != FLT_MAX), 1)));
 
 #pragma endregion
 
@@ -1090,29 +972,12 @@ void ResetCameraProfileSettings_Stub()
 
 	LOG("Resetting custom prefs...");
 
-	for (auto it = g_customPrefs.begin(); it != g_customPrefs.end(); it++)
+	for (auto it = g_customPrefs.begin(); it != g_customPrefs.end(); ++it)
 	{
 		SetPauseMenuPreference_Stub(it->first, it->second.m_resetvalue, 3u);
 	}
-}
 
-void doCameraPatches()
-{
-	LOG("doCameraPatches(): Begin patches...");
-
-	patchMetadataCollection();
-
-	if (!g_scriptconfig.get<bool>("InVehicleCamera", "SwapCameraOnWaterEnter", true))
-	{
-		g_cinematicCameraEnterWaterPatch1.install();
-	}
-
-	if (!g_scriptconfig.get<bool>("InVehicleCamera", "SwapCameraOnVehicleDestroyed", true))
-	{
-		g_cinematicCameraEnterWaterPatch2.install();
-	}
-
-	LOG("doCameraPatches(): Patches completed!");
+	saveCamPresets();
 }
 
 std::string getResourceConfigData(HMODULE hModule)
@@ -1138,7 +1003,7 @@ std::string getResourceConfigData(HMODULE hModule)
 
 void makeConfigFile()
 {
-	if (!std::ifstream(g_scriptconfig.filename, std::ifstream::in))
+	if (!Utility::FileExists(g_scriptconfig.filename))
 	{
 		LOG("makeConfigFile(): Creating new config...");
 
@@ -1198,153 +1063,181 @@ void validateAppVersion()
 	}
 }
 
+bool getMetadataHashForEntity(Entity entity, eMetadataHash eType, unsigned int * outHash)
+{
+	if (ENTITY::IS_ENTITY_A_VEHICLE(entity))
+	{
+		auto modelInfo = *reinterpret_cast<uintptr_t*>(getScriptHandleBaseAddress(entity) + 0x20);
+
+		if (!modelInfo)
+			return false;
+
+		auto modelOffsets = g_addresses.get("CVehicleModelInfo");
+
+		switch (eType)
+		{
+		case eCamCinematicMountedCameraMetadata:
+			*outHash = *reinterpret_cast<DWORD*>(modelInfo + modelOffsets->map["firstPersonCameraHash"]);
+			break;
+
+		case eCamFollowVehicleCameraMetadata:
+			*outHash = *reinterpret_cast<DWORD*>(modelInfo + modelOffsets->map["thirdPersonCameraHash"]);
+			break;
+
+		default:
+			return false;
+		}
+		return true;
+	}
+
+	else if (ENTITY::IS_ENTITY_A_PED(entity))
+	{
+		switch (entity)
+		{
+		case eCamFirstPersonShooterCameraMetadata:
+			*outHash = 0xA70102CA;
+			break;
+
+		case eCamFollowPedCameraMetadata:
+			*outHash = 0xFBE36564;
+			break;
+
+		default:
+			return false;
+		}
+		return true;
+	}
+
+	return false;
+}
+
 void checkCameraFrame()
 {
-	Entity camEntity;
-	bool inVehicle;
-	unsigned int modelHash;
+	Entity entity;
 
 	auto playerPed = PLAYER::PLAYER_PED_ID();
 
-	if (PED::IS_PED_IN_ANY_VEHICLE(playerPed, true))
+	if (g_camGameplayDirector->vehicle)
 	{
-		camEntity = AI::GET_IS_TASK_ACTIVE(playerPed, 2) ?
+		entity = AI::GET_IS_TASK_ACTIVE(playerPed, 160) ?
 			PED::GET_VEHICLE_PED_IS_TRYING_TO_ENTER(playerPed) :
 			PED::GET_VEHICLE_PED_IS_IN(playerPed, false);
-		modelHash = ENTITY::GET_ENTITY_MODEL(camEntity);
-		inVehicle = true;
+		bVehicleCamActive = true;
 	}
 
 	else
 	{
-		//	auto directorObjHash = getHashKey("camGameplayDirector");
-		modelHash = ENTITY::GET_ENTITY_MODEL(playerPed);	
-		camEntity = playerPed;
-		inVehicle = false;
+		entity = playerPed;
+		bVehicleCamActive = false;
 	}
 
-	if (!modelHash) return;
+	unsigned int modelHash = ENTITY::GET_ENTITY_MODEL(entity);
 
-	//if (!camDirector) return;
+	if (!modelHash || modelHash == g_modelId && !bShouldUpdatePresets) return;
 
-	if (modelHash != g_modelId)
+	g_modelId = modelHash;
+
+	bShouldUpdatePresets = false;
+
+	auto keyValue = bUseGlobalPresets ? 0 : g_modelId;
+
+	LOG("checkCameraFrame(): Looking up preset data using key %d...", keyValue);
+
+	auto itPreset = g_camPresets.find(keyValue);
+
+	if (itPreset == g_camPresets.end())
 	{
-		g_modelId = modelHash;
+		LOG("checkCameraFrame(): Preset lookup failed. Will try to use global preset.");
 
-		LOG("checkCameraFrame(): Looking up preset data using key %d...", modelHash);
+		itPreset = g_camPresets.find(0);
 
-		auto itPreset = g_camPresets.find(modelHash);
-
-		if (itPreset != g_camPresets.end())
+		if (itPreset == g_camPresets.end())
 		{
-			LOG("checkCameraFrame(): Found camera presets. applying...");
-
-			printToScreen("Updating camera settings...");
-
-			for (auto it = itPreset->second.begin(); it != itPreset->second.end(); it++)
-			{
-				auto addresses = g_addresses.get(g_metadataHashMap[it->metadataHash]);
-
-				if (!addresses)
-				{
-					LOG("checkCameraFrame(): Couldn't find offsets for metadata (0x%lX)...", it->metadataHash);
-					continue;
-				}
-
-				unsigned int cameraHash;
-
-				if (inVehicle)
-				{
-					auto modelInfo = *reinterpret_cast<uintptr_t*>(getScriptHandleBaseAddress(camEntity) + 0x20);
-
-					if (!modelInfo)
-					{
-						LOG("checkCameraFrame(): Couldn't find model info for vehicle.");
-						return;
-					}
-
-					if (it->metadataHash == eCamCinematicMountedCameraMetadata)
-					{
-						cameraHash = *reinterpret_cast<DWORD*>(modelInfo + 0x4AC);
-					}
-
-					else if (it->metadataHash == eCamFollowVehicleCameraMetadata)
-					{
-						cameraHash = *reinterpret_cast<DWORD*>(modelInfo + 0x4A0);
-					}
-
-					else
-					{
-						cameraHash = 0;
-						LOG("checkCameraFrame(): Invalid metadata type supplied for vehicle (0x%lX).", it->metadataHash);
-						return;
-					}
-				}
-
-				else
-				{
-					if (it->metadataHash == eCamFollowPedCameraMetadata)
-					{
-						cameraHash = 0xFBE36564;
-					}
-
-					else if (it->metadataHash == eCamFirstPersonShooterCameraMetadata)
-					{
-						cameraHash = 0xA70102CA;
-					}
-
-					else
-					{
-						cameraHash = 0;
-						LOG("checkCameraFrame(): Invalid metadata type supplied for ped (0x%lX).", it->metadataHash);
-						return;
-					}
-				}
-
-				auto camObjMetadata = getMetadataForHash(cameraHash);
-
-				if (!camObjMetadata)
-				{
-					LOG("checkCameraFrame(): No metadata for hash 0x%lX.", camObjMetadata);
-					continue;
-				}
-
-				else 
-					LOG("checkCameraFrame(): Got pointer to metadata (%p).", camObjMetadata);
-
-				auto psoStruct = camObjMetadata->getPsoStruct();
-
-				if (!psoStruct) continue;
-
-				auto metadataTypeHash = *reinterpret_cast<DWORD*>(psoStruct + 8);
-
-				if (metadataTypeHash != it->metadataHash)
-				{
-					LOG("checkCameraFrame(): Found metadata type didn't match ours. Ours was 0x%lX but we found 0x%lX.", it->metadataHash, metadataTypeHash);
-					continue;
-				}
-
-				auto address = reinterpret_cast<uintptr_t>(camObjMetadata) + addresses->map[it->name];
-
-				switch (it->type)
-				{
-				case CPT_BOOLEAN:
-					WriteBool(address, it->value.enabled);
-				case CPT_INTEGER:
-					WriteInt(address, it->value.integer);
-				case CPT_UINTEGER:
-					WriteUInt(address, it->value.unsignedInt);
-				case CPT_FLOAT:
-					WriteFloat(address, it->value.fvalue);
-				case CPT_DOUBLE:
-					WriteDouble(address, it->value.dvalue);
-				default:
-					break;
-				}
-			}
-
-			LOG("checkCameraFrame(): Finished writing data...");
+			LOG("checkCameraFrame(): No global preset exists. Exiting...");
+			return;
 		}
+	}
+
+	LOG("checkCameraFrame(): Found camera presets. applying...");
+
+	unsigned int cameraHash;
+
+	for (auto it = itPreset->second.begin(); it != itPreset->second.end(); ++it)
+	{
+		auto addresses = g_addresses.get(g_metadataHashMap[it->metadataHash]);
+
+		if (!addresses)
+		{
+			LOG("checkCameraFrame(): Couldn't find offsets for metadata (0x%lX)...", it->metadataHash);
+			continue;
+		}
+
+		if (!getMetadataHashForEntity(entity, it->metadataHash, &cameraHash))
+		{
+			LOG("checkCameraFrame(): Couldn't find camera hash for entity. Base type was %s", g_metadataHashMap[it->metadataHash].c_str());
+			continue;
+		}
+
+		auto camObjMetadata = getCamMetadataForHash(cameraHash);
+
+		if (!camObjMetadata)
+		{
+			LOG("checkCameraFrame(): No metadata for hash 0x%lX.", camObjMetadata);
+			continue;
+		}
+
+		auto psoData = camObjMetadata->getPsoStruct();
+
+		if (!psoData) continue;
+
+		auto baseMetadataHash = *reinterpret_cast<DWORD*>(psoData + 8);
+
+		if (baseMetadataHash != it->metadataHash)
+		{
+			LOG("checkCameraFrame(): Found metadata type didn't match ours. Ours was 0x%lX but we found 0x%lX.", it->metadataHash, baseMetadataHash);
+			continue;
+		}
+
+		auto address = reinterpret_cast<uintptr_t>(camObjMetadata) + addresses->map[it->name];
+
+		switch (it->type)
+		{
+		case CPT_BOOLEAN:
+			WriteBool(address, it->value.enabled);
+			break;
+		case CPT_INTEGER:
+			WriteInt(address, it->value.integer);
+			break;
+		case CPT_UINTEGER:
+			WriteUInt(address, it->value.unsignedInt);
+			break;
+		case CPT_FLOAT:
+			WriteFloat(address, it->value.fvalue);
+			break;
+		case CPT_DOUBLE:
+			WriteDouble(address, it->value.dvalue);
+			break;
+
+		default:
+			break;
+		}
+	}
+}
+
+void scriptKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow)
+{
+	if (key == vkReloadPresets)
+	{
+		printToScreen("Reloading camera settings...");
+
+		readPresetsFromFile("CameraPresets.xml");
+
+		bShouldUpdatePresets = true;
+	}
+
+	if (key == vkSaveLayout && GetAsyncKeyState(VK_CONTROL) & 0x8000)
+	{
+		saveCamPresets();
 	}
 }
 
@@ -1358,15 +1251,18 @@ void mainLoop()
 
 		if (bInitialized || *g_gameState != Playing) continue;
 
-		doCameraPatches();
-
-		validateAppVersion();
-
-		if (g_scriptconfig.get<bool>("General", "UseCameraPresets", true))
+		if (!g_scriptconfig.get<bool>("InVehicleCamera", "SwapCameraOnWaterEnter", true))
 		{
-			bUseCameraIndependentSettings = true;
+			g_cinematicCameraEnterWaterPatch1.install();
 		}
 
+		if (!g_scriptconfig.get<bool>("InVehicleCamera", "SwapCameraOnVehicleDestroyed", true))
+		{
+			g_cinematicCameraEnterWaterPatch2.install();
+		}
+
+		validateAppVersion();
+		
 		printToScreen("Loaded");
 
 		bInitialized = true;
@@ -1379,8 +1275,6 @@ void setupHooks()
 
 	// invalid game version
 	if (gameVersion == VER_UNK) return;
-
-	makeConfigFile();
 
 	addOffsetsForGameVersion(gameVersion);
 
@@ -1548,7 +1442,7 @@ void setupHooks()
 	result = pattern.get(0x12);
 
 	// always toggle preferences
-	memset((void*)pattern.get(0x12), 0x90, 6);
+	memset((void*)result, 0x90, 6);
 
 	pattern = Pattern((BYTE*)"\x39\x18\x74\x0A\x48\xFF\xC6", "xxxxxxx");
 
@@ -1565,14 +1459,59 @@ void setupHooks()
 		return;
 	}
 
-	getCamDirectorObjectByHash = (GetCamDirectorObjectByHash_t)result;
+	getCamDirectorFromPool = reinterpret_cast<GetCamDirectorFromPool_t>(result);
+
+	auto hashKey = getHashKey("camgameplaydirector");
+
+	g_camGameplayDirector = getCamDirectorFromPool(&hashKey);
+
+	if (g_camGameplayDirector)
+	{
+		LOG("main(): g_camGameplayDirector found at %p", g_camGameplayDirector);
+	}
+
+	else
+	{
+		LOG("[ERROR] main(): Failed to find g_camGameplayDirector");
+	}
+}
+
+void loadConfigData()
+{
+	char inBuf[MAX_PATH];
+
+	if (g_scriptconfig.getText(inBuf, "Keybinds", "SaveSettings"))
+	{
+		vkSaveLayout = keyFromString(std::string(inBuf), 0x42);
+	}
+	
+	if (g_scriptconfig.getText(inBuf, "Keybinds", "ReloadSettings"))
+	{
+		vkReloadPresets = keyFromString(std::string(inBuf), VK_F11);
+	}	
+
+	if (!g_scriptconfig.get<bool>("General", "UseVehicleLayouts", true))
+	{
+		bUseGlobalPresets = true;
+	}
+
+	if (g_scriptconfig.get<bool>("General", "AutoSaveLayouts", false))
+	{
+		bAutoSaveLayouts = true;
+	}	
 }
 
 void scriptMain()
 {
-	readXmlDataFileEntries("CameraPresets.xml");
+	readPresetsFromFile("CameraPresets.xml");
+
+	makeConfigFile();
+
+	loadConfigData();
 
 	setupHooks();
+
+	checkCameraFrame(); // pump camera frame for addPauseMenuItems();
 
 	addPauseMenuItems();
 

@@ -37,7 +37,6 @@ union CamPresetValue
 
 struct CamMetadataPreset
 {
-public:
 	CamMetadataPreset() {
 		memset(this, 0x0, sizeof(CamMetadataPreset));
 	}
@@ -48,7 +47,7 @@ public:
 	CamPresetType type;
 	CamPresetValue value;
 
-	std::string toString()
+	std::string toString() const
 	{
 		std::stringstream sstream;
 

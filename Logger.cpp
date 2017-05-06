@@ -2,22 +2,22 @@
 
 Logger::Logger(std::string name)
 {
-	Logger::Initialize(name);
+	Initialize(name);
 }
 
 Logger::Logger()
 {
-	Logger::Initialize(Utility::GetModuleName(Utility::GetActiveModule()));
+	Initialize(Utility::GetModuleName(Utility::GetActiveModule()));
 }
 
 void Logger::Initialize(std::string name)
 {
 	logName = Utility::GetWorkingDirectory() + "\\" + name + ".log";
 
-	Logger::Remove();
+	Remove();
 }
 
-void Logger::Write(const char * format, ...)
+void Logger::Write(const char * format, ...) const
 {
 	char inBuff[0x100];
 
@@ -38,7 +38,7 @@ void Logger::Write(const char * format, ...)
 	ofs.close();
 }
 
-void Logger::Remove()
+void Logger::Remove() const
 {
 	if (!Utility::FileExists(logName)) 
 		return;
@@ -48,5 +48,5 @@ void Logger::Remove()
 
 Logger::~Logger()
 {
-	Logger::Remove();
+	Remove();
 }

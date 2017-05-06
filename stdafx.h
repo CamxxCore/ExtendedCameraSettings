@@ -4,20 +4,20 @@ class AddressMgr;
 
 extern AddressMgr g_addresses;
 
-#define __MAJOR_REV__ 1.0
-#define __MINOR_REV__ .07
+#define __MAJOR_REV__ 1.1
+#define __MINOR_REV__ .0
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
-#define WriteInt(a,b)(*(int*)a = (int)b)
+#define WriteInt(a,b)(*(int*)a = b)
 
-#define WriteUInt(a,b)(*(unsigned int*)a = (unsigned int)b)
+#define WriteUInt(a,b)(*(unsigned int*)a = b)
 
-#define WriteFloat(a,b)(*(float*)a = (float)b)
+#define WriteFloat(a,b)(*(float*)a = b)
 
-#define WriteDouble(a,b)(*(double*)a = (double)b)
+#define WriteDouble(a,b)(*(double*)a = b)
 
-#define WriteBool(a,b)(*(bool*)a = (bool)b)
+#define WriteBool(a,b)(*(bool*)a = b)
 
 #include <windows.h>
 
@@ -26,6 +26,7 @@ extern AddressMgr g_addresses;
 #include <mutex>
 #include <fstream>
 #include <algorithm>
+#include <string>
 
 #include "resource.h"
 
@@ -39,17 +40,19 @@ extern AddressMgr g_addresses;
 #include "functions.h"
 #include "types.h"
 
+#include "keymap.h"
+
 #include "tinyxml2.h"
 
 #include "XMLHelper.h"
 
-#include "Math.h"
-
 #include "Utility.h"
 
-#include "Logger.h"
+#include "Math.h"
 
 #include "AddressMgr.h"
+
+#include "Logger.h"
 
 #include "Hooking.h"
 
@@ -75,5 +78,7 @@ inline void printToScreen(const char * fmt, ...)
 void mainInit(HMODULE hModule);
 
 void scriptMain();
+
+void scriptKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow);
 
 void unload();

@@ -55,6 +55,11 @@ enum eDynamicMenuAction
 
 struct CPauseMenuItem
 {
+	CPauseMenuItem()
+	{
+		memset(this, 0x0, sizeof(CPauseMenuItem));
+	}
+
 	int menuIndex; // 0x0-0x4
 	unsigned int textHash; //0x4-0x8
 	void * unkPtr; //0x8-0x10

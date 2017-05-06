@@ -47,5 +47,6 @@
     <ClInclude Include="opcode.h" />
     <ClInclude Include="patch.h" />
     <ClInclude Include="pattern.h" />
+    <ClInclude Include="keymap.h" />
   </ItemGroup>
 </Project>

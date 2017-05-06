@@ -11,10 +11,12 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	case DLL_PROCESS_ATTACH:
 		mainInit(hModule);
 		scriptRegister(hModule, scriptMain);
+		keyboardHandlerRegister(scriptKeyboardMessage);
 		break;
 	case DLL_PROCESS_DETACH:
 		unload();
 		scriptUnregister(scriptMain);
+		keyboardHandlerUnregister(scriptKeyboardMessage);
 	}
 	return TRUE;
 }

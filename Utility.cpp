@@ -80,3 +80,8 @@ void Utility::SplitString(std::string str, std::string splitBy, std::vector<std:
 		tokens.push_back(frag.substr(splitAt + splitLen, frag.size() - (splitAt + splitLen)));
 	}
 }
+
+void Utility::ToLower(std::string& str)
+{
+	std::transform(str.begin(), str.end(), str.begin(), std::tolower);
+}

@@ -9,8 +9,8 @@ public:
 	Logger(std::string filename);
 	~Logger();
 	void Initialize(std::string name);
-	void Write(const char * format, ...);
-	void Remove();
+	void Write(const char * format, ...) const;
+	void Remove() const;
 private:
 	std::string logName;
 };

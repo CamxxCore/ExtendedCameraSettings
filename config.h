@@ -21,21 +21,12 @@ public:
 	template <typename T>
 	T get(const char * section, const char * key, T defaultValue)
 	{
-		T result;
+		T result{};
 
 		TCHAR inBuf[0x100];
 
-		GetPrivateProfileString (TEXT(section), 
-			                     TEXT(key), 
-			                     NULL, 
-			                     inBuf, 
-			                     0x100, 
-			                     TEXT(filename));
-
-		if (GetLastError() != ERROR_SUCCESS || !inBuf)
-		{
+		if (!getText(inBuf, section, key))
 			return defaultValue;
-		}
 
 		std::stringstream sstream;
 
@@ -49,11 +40,23 @@ public:
 		else
 		{
 			sstream << inBuf;
-		}
+		}	
 
 		sstream >> result;
 
 		return result;
+	}
+
+	bool getText(char * outBuffer, const char * section, const char * key) const
+	{
+		GetPrivateProfileString(TEXT(section),
+			TEXT(key),
+			NULL,
+			outBuffer,
+			sizeof(outBuffer),
+			TEXT(filename));
+
+		return outBuffer && GetLastError() == ERROR_SUCCESS;
 	}
 
 	template <typename T>
@@ -72,12 +75,10 @@ public:
 		{
 			sstream << val;
 		}
-
-		std::string str = sstream.str();
 		
 		WritePrivateProfileString (TEXT(section),
 			                       TEXT(key),
-			                       TEXT(str.c_str()),
+			                       TEXT(sstream.str().c_str()),
 			                       filename);
 	}
 

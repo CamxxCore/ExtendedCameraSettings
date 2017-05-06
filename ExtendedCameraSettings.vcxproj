@@ -50,6 +50,7 @@
     <ClInclude Include="functions.h" />
     <ClInclude Include="game.h" />
     <ClInclude Include="Hooking.h" />
+    <ClInclude Include="keymap.h" />
     <ClInclude Include="Logger.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="MemAddr.h" />
