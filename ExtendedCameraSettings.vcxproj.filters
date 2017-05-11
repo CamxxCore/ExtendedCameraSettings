@@ -10,6 +10,9 @@
     <Filter Include="tinyxml2">
       <UniqueIdentifier>{e7b6a36b-0a7e-4e62-aa32-8b70f32f16f4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="loc">
+      <UniqueIdentifier>{15202606-ac07-4ec6-aca5-10fb46b454fc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tinyxml2\tinyxml2.cpp">
@@ -48,5 +51,6 @@
     <ClInclude Include="patch.h" />
     <ClInclude Include="pattern.h" />
     <ClInclude Include="keymap.h" />
+    <ClInclude Include="strings.h" />
   </ItemGroup>
 </Project>

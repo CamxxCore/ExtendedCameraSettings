@@ -15,15 +15,6 @@ struct CustomMenuPref
 	}
 };
 
-enum CamPresetType
-{
-	CPT_BOOLEAN,
-	CPT_INTEGER,
-	CPT_UINTEGER,
-	CPT_FLOAT,
-	CPT_DOUBLE
-};
-
 union CamPresetValue
 {
 	bool enabled;
@@ -75,3 +66,4 @@ struct CamMetadataPreset
 		return sstream.str();
 	}
 };
+

@@ -421,39 +421,6 @@ inline bool getVehicleModelName(DWORD vehicleHash, std::string& str)
 	return false;
 }
 
-inline std::string getEntityName(Entity entity)
-{
-	auto address = getScriptHandleBaseAddress(entity);
-
-	// probably a better way to get this...
-	if (*(BYTE*)(address + 0xC0) & 0x40)
-	{
-		auto fragInst = *reinterpret_cast<uintptr_t*>(address + 0x30);
-
-		if (fragInst)
-		{
-			auto fragType = *reinterpret_cast<uintptr_t*>(fragInst + 0x78);
-
-			if (fragType)
-			{
-				auto text = *(char**)(fragType + 0x58);
-
-				if (text)
-				{
-					auto cppstr = std::string(text);
-
-					auto off = cppstr.find_first_of('/');
-
-					return cppstr.substr(off + 1, cppstr.size() - off);
-				}
-			}
-		}
-	}
-
-	return "";
-}
-	
-
 inline unsigned int getHashKey(const char * str)
 {
 	unsigned int hash = 0;

@@ -59,6 +59,7 @@
     <ClInclude Include="pattern.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="strings.h" />
     <ClInclude Include="tinyxml2\tinyxml2.h" />
     <ClInclude Include="types.h" />
     <ClInclude Include="Utility.h" />

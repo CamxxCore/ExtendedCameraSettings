@@ -5,7 +5,7 @@ class AddressMgr;
 extern AddressMgr g_addresses;
 
 #define __MAJOR_REV__ 1.1
-#define __MINOR_REV__ .0
+#define __MINOR_REV__ .01
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -35,12 +35,12 @@ extern AddressMgr g_addresses;
 #include "patch.h"
 
 #include "enums.h"
+#include "keymap.h"
+#include "strings.h"
 #include "config.h"
 #include "game.h"
 #include "functions.h"
 #include "types.h"
-
-#include "keymap.h"
 
 #include "tinyxml2.h"
 
