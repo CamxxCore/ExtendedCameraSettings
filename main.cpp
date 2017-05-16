@@ -3,7 +3,7 @@
 
 #pragma warning(disable : 4244 4305) 
 
-typedef const char *(*GetGlobalTextEntry_t)(const char * text, unsigned int hashName);
+typedef const char *(*GetGlobalTextEntry_t)(void * unk, unsigned int hashName);
 
 typedef void(*SetPauseMenuPreference_t)(long long settingIndex, int value, unsigned int unk);
 
@@ -41,8 +41,6 @@ rage::pgCollection<CPauseMenuInstance> g_activeMenuArray;
 
 GetCamDirectorFromPool_t getCamDirectorFromPool;
 
-camBaseCamera * g_activeCamera;
-
 std::map<unsigned int, std::string> g_textEntries;
 
 static std::mutex g_textMutex;
@@ -54,7 +52,7 @@ const int kMenuItemsCount = 24;
 const int kSettingsStartIndex = 230;
 
 bool bDidLoad = false;
-bool bInitialized = false;
+bool bPostLoadFinished = false;
 
 bool bUseGlobalPresets = false,
 	 bAutoSaveLayouts = false,
@@ -92,7 +90,7 @@ std::map<eMetadataHash, std::string> g_metadataHashMap = {
 	{ eCamThirdPersonPedAimCameraMetadata, "camThirdPersonPedAimCameraMetadata" },
 };
 
-void addOffsetsForGameVersion(int gameVer)
+void addOffsetsForGameVersion(int version)
 {
 	#pragma region firstPersonCamera
 
@@ -105,7 +103,7 @@ void addOffsetsForGameVersion(int gameVer)
 	offsets->insert("viewOffsetX", 64); //F3 0F 10 4A ? F3 0F 10 42 ? 44 0F 29 ? ? ? ? ?
 	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
 	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
-	offsets->insert("altMinYaw", gameVer < v1_0_505_2_STEAM ? 696 : gameVer < v1_0_877_1_STEAM ? 712 : 760); //48 8B 81 ? ? ? ? EB E6
+	offsets->insert("altMinYaw", version < v1_0_505_2_STEAM ? 696 : version < v1_0_877_1_STEAM ? 712 : 760); //48 8B 81 ? ? ? ? EB E6
 	offsets->insert("altMaxYaw", offsets->map["altMinYaw"].add(4)); //+4
 	offsets->insert("altMinPitch", offsets->map["altMinYaw"].add(8)); //+8
 	offsets->insert("altMaxPitch", offsets->map["altMinYaw"].add(12)); //+C
@@ -116,13 +114,13 @@ void addOffsetsForGameVersion(int gameVer)
 
 	offsets = g_addresses.getOrCreate("camCinematicMountedCameraMetadata");
 
-	offsets->insert("fov", gameVer < v1_0_877_1_STEAM ? 80 : 84); //F3 0F 10 48 ? F3 0F 11 89 ? ? ? ?
-	offsets->insert("minPitch", gameVer < v1_0_505_2_STEAM ? 808 : gameVer < v1_0_877_1_STEAM ? 824 : gameVer < v1_0_944_2_STEAM ? 872 : 888); //F3 0F 10 ? ? ? ? ? 0F 2F D0 72 10 F3 0F 10 ? ? 03 00 00
+	offsets->insert("fov", version < v1_0_877_1_STEAM ? 80 : 84); //F3 0F 10 48 ? F3 0F 11 89 ? ? ? ?
+	offsets->insert("minPitch", version < v1_0_505_2_STEAM ? 808 : version < v1_0_877_1_STEAM ? 824 : version < v1_0_944_2_STEAM ? 872 : 888); //F3 0F 10 ? ? ? ? ? 0F 2F D0 72 10 F3 0F 10 ? ? 03 00 00
 	offsets->insert("maxPitch", offsets->map["minPitch"].add(4));
-	offsets->insert("minPitchExt", gameVer < v1_0_505_2_STEAM ? 776 : gameVer < v1_0_877_1_STEAM ? 792 : gameVer < v1_0_944_2_STEAM ? 840 : 856); //F3 0F 59 87 ? ? ? ? F3 41 0F 59 C4 
-	offsets->insert("maxPitchExt", gameVer < v1_0_505_2_STEAM ? 780 : gameVer < v1_0_877_1_STEAM ? 796 : gameVer < v1_0_944_2_STEAM ? 844 : 860);
-	offsets->insert("minSpeedForAutoCorrect", gameVer < v1_0_505_2_STEAM ? 680 : gameVer < v1_0_877_1_STEAM ? 696 : gameVer < v1_0_944_2_STEAM ? 744 : 760); //0F 2F B0 ? ? ? ? 0F 82 ? 02 00 00
-	offsets->insert("viewOffsetX", gameVer < v1_0_877_1_STEAM ? 80 : 96);  //F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 0F 11 45 ? ? 84 ?
+	offsets->insert("minPitchExt", version < v1_0_505_2_STEAM ? 776 : version < v1_0_877_1_STEAM ? 792 : version < v1_0_944_2_STEAM ? 840 : 856); //F3 0F 59 87 ? ? ? ? F3 41 0F 59 C4 
+	offsets->insert("maxPitchExt", version < v1_0_505_2_STEAM ? 780 : version < v1_0_877_1_STEAM ? 796 : version < v1_0_944_2_STEAM ? 844 : 860);
+	offsets->insert("minSpeedForAutoCorrect", version < v1_0_505_2_STEAM ? 680 : version < v1_0_877_1_STEAM ? 696 : version < v1_0_944_2_STEAM ? 744 : 760); //0F 2F B0 ? ? ? ? 0F 82 ? 02 00 00
+	offsets->insert("viewOffsetX", version < v1_0_877_1_STEAM ? 80 : 96);  //F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 0F 11 45 ? ? 84 ?
 	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
 	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
 
@@ -133,12 +131,12 @@ void addOffsetsForGameVersion(int gameVer)
 	offsets = g_addresses.getOrCreate("camFollowVehicleCameraMetadata");
 
 	offsets->insert("fov", 48); //F3 0F 59 48 ? 0F 2F C8 72 2C
-	offsets->insert("highSpeedShakeSpeed", gameVer < v1_0_505_2_STEAM ? 1176 : gameVer < v1_0_944_2_STEAM ? 1192 : 1208); //48 81 C7 ? ? ? ? 8B 6F 08 shakesettings+0x10
-	offsets->insert("enableAutoCenter", gameVer < v1_0_505_2_STEAM ? 877 : gameVer < v1_0_944_2_STEAM ? 893 : 909); //80 ? ? ? ? ? ? 75 14 48 8B 83 ? ? ? ? 
-	offsets->insert("autoCenterLerpScale", gameVer < v1_0_505_2_STEAM ? 892 : gameVer < v1_0_944_2_STEAM ? 908 : 924); //F3 0F 10 88 ? ? ? ? 73 06 
-	offsets->insert("followDistance", gameVer < v1_0_791_2_STEAM ? 312 : gameVer < v1_0_944_2_STEAM ? 320 : 328); //F3 0F 10 80 ? ? ? ? C3 4C 8B 81 ? ? ? ? 49 81 C0 ? ? ? ? 
-	offsets->insert("pivotScale", gameVer < v1_0_791_2_STEAM ? 164 : gameVer < v1_0_944_2_STEAM ? 172 : 180); //F3 0F 10 88 ? ? ? ? 0F 28 C1 C3 
-	offsets->insert("pivotOffsetX", gameVer < v1_0_791_2_STEAM ? 232 : gameVer < v1_0_944_2_STEAM ? 240 : gameVer < v1_0_1011_1_STEAM ? 256 : 248); //F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
+	offsets->insert("highSpeedShakeSpeed", version < v1_0_505_2_STEAM ? 1176 : version < v1_0_944_2_STEAM ? 1192 : 1208); //48 81 C7 ? ? ? ? 8B 6F 08 shakesettings+0x10
+	offsets->insert("enableAutoCenter", version < v1_0_505_2_STEAM ? 877 : version < v1_0_944_2_STEAM ? 893 : 909); //80 ? ? ? ? ? ? 75 14 48 8B 83 ? ? ? ? 
+	offsets->insert("autoCenterLerpScale", version < v1_0_505_2_STEAM ? 892 : version < v1_0_944_2_STEAM ? 908 : 924); //F3 0F 10 88 ? ? ? ? 73 06 
+	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328); //F3 0F 10 80 ? ? ? ? C3 4C 8B 81 ? ? ? ? 49 81 C0 ? ? ? ? 
+	offsets->insert("pivotScale", version < v1_0_791_2_STEAM ? 164 : version < v1_0_944_2_STEAM ? 172 : 180); //F3 0F 10 88 ? ? ? ? 0F 28 C1 C3 
+	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248); //F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
 
 	#pragma endregion
 
@@ -147,11 +145,11 @@ void addOffsetsForGameVersion(int gameVer)
 	offsets = g_addresses.getOrCreate("camFollowPedCameraMetadata");
 
 	offsets->insert("fov", 48);
-	offsets->insert("sprintShakeSpeed", gameVer < v1_0_505_2_STEAM ? 2068 : 2092);
-	offsets->insert("minPitch", gameVer < v1_0_505_2_STEAM ? 580 : gameVer < v1_0_944_2_STEAM ? 596 : 612);
-	offsets->insert("maxPitch", gameVer < v1_0_505_2_STEAM ? 584 : gameVer < v1_0_944_2_STEAM ? 600 : 616);
-	offsets->insert("pivotOffsetX", gameVer < v1_0_791_2_STEAM ? 232 : gameVer < v1_0_944_2_STEAM ? 240 : gameVer < v1_0_1011_1_STEAM ? 256 : 248);
-	offsets->insert("followDistance", gameVer < v1_0_791_2_STEAM ? 312 : gameVer < v1_0_944_2_STEAM ? 320 : 328);
+	offsets->insert("sprintShakeSpeed", version < v1_0_505_2_STEAM ? 2068 : 2092);
+	offsets->insert("minPitch", version < v1_0_505_2_STEAM ? 580 : version < v1_0_944_2_STEAM ? 596 : 612);
+	offsets->insert("maxPitch", version < v1_0_505_2_STEAM ? 584 : version < v1_0_944_2_STEAM ? 600 : 616);
+	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248);
+	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328);
 
 	#pragma endregion
 
@@ -161,8 +159,8 @@ void addOffsetsForGameVersion(int gameVer)
 	offsets = g_addresses.getOrCreate("camThirdPersonPedAimCameraMetadata");
 
 	offsets->insert("fov", 48);
-	offsets->insert("pivotOffsetX", gameVer < v1_0_791_2_STEAM ? 232 : gameVer < v1_0_944_2_STEAM ? 240 : gameVer < v1_0_1011_1_STEAM ? 256 : 248);
-	offsets->insert("followDistance", gameVer < v1_0_791_2_STEAM ? 312 : gameVer < v1_0_944_2_STEAM ? 320 : 328);
+	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248);
+	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328);
 
 	#pragma endregion
 
@@ -170,7 +168,7 @@ void addOffsetsForGameVersion(int gameVer)
 
 	offsets = g_addresses.getOrCreate("CVehicleModelInfo");
 
-	offsets->insert("thirdPersonCameraHash", gameVer < v1_0_505_2_STEAM ? 1120 : gameVer <  v1_0_791_2_STEAM ? 1168 : 1184);
+	offsets->insert("thirdPersonCameraHash", version < v1_0_505_2_STEAM ? 1120 : version <  v1_0_791_2_STEAM ? 1168 : 1184);
 	offsets->insert("firstPersonCameraHash", offsets->map["thirdPersonCameraHash"].add(0xC));
 	#pragma endregion
 }
@@ -289,6 +287,12 @@ void readPresetsFromFile(std::string filename)
 					sstream >> preset.value.dvalue;
 				}
 
+				else
+				{
+					LOG("Invalid preset type provided for item %s (%s)", preset.name.c_str(), type);
+					continue;
+				}
+
 				presets.push_back(preset);
 
 				LOG("<Preset name=\"%s\" type=\"%s\">%s</Preset>", preset.name.c_str(), type, value);
@@ -400,7 +404,7 @@ void writePresetToFile(std::string filename, unsigned int modelHash, CamMetadata
 	writePresetsToFile(filename, modelHash, std::vector<CamMetadataPreset> { preset });
 }
 
-const char * getGxtEntry_Stub(const char * text, unsigned int hashName)
+const char * getGxtEntry_Stub(void * unk, unsigned int hashName)
 {
 	std::unique_lock<std::mutex> lock(g_textMutex);
 
@@ -411,7 +415,7 @@ const char * getGxtEntry_Stub(const char * text, unsigned int hashName)
 		return it->second.c_str();
 	}
 
-	return g_getGxtEntry->fn(text, hashName);
+	return g_getGxtEntry->fn(unk, hashName);
 }
 
 unsigned int addGxtEntry(std::string key, std::string text)
@@ -461,7 +465,7 @@ void setupMenuItem(CPauseMenuItem * item, std::string gxtAlias, std::string text
 	item->menuIndex = menuIndex;
 	item->type = type;
 	item->actionType = actionType;
-	item->targetSettingIdx = static_cast<unsigned char>(settingIdx);
+	item->settingId = static_cast<unsigned char>(settingIdx);
 	item->stateFlags = stateFlags;
 }
 
@@ -644,7 +648,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(getPresetValueBool(eCamFirstPersonShooterCameraMetadata, "alwaysUseReticle", false)), 0)));
+	}, []() -> int { return int(getPresetValueBool(eCamFirstPersonShooterCameraMetadata, "alwaysUseReticle", false)); }, 0)));
 
 #pragma endregion
 
@@ -663,7 +667,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(-getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "minPitch", -60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "minPitch", -60.0f), 40.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -682,7 +686,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "maxPitch", 60.0f), 40.0f, 80.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "maxPitch", 60.0f), 40.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -701,7 +705,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "fov", 50.0f), 20.0f, 80.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "fov", 50.0f), 20.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -720,7 +724,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -738,7 +742,8 @@ void addPauseMenuItems()
 		p.value.fvalue = Math::FromToRange(value, 0.0f, 10.0f, 0.0f, 2.0f);
 
 		setCamPreset(p);
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)), 5)));
+
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -757,7 +762,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(getPresetValueFloat(eCamFollowPedCameraMetadata, "sprintShakeSpeed", 0.5f) != FLT_MAX), 1)));
+	}, []() -> int { return int(getPresetValueFloat(eCamFollowPedCameraMetadata, "sprintShakeSpeed", 0.5f) != FLT_MAX); }, 1)));
 
 #pragma endregion
 
@@ -776,7 +781,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(-getPresetValueFloat(eCamFollowPedCameraMetadata, "minPitch", -70.0f), 50.0f, 90.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamFollowPedCameraMetadata, "minPitch", -70.0f), 50.0f, 90.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -795,7 +800,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "maxPitch", 45.0f), 0.0f, 90.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "maxPitch", 45.0f), 0.0f, 90.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -814,7 +819,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "fov", 45.0f), 15.0f, 75.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "fov", 45.0f), 15.0f, 75.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -833,7 +838,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -852,7 +857,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -871,7 +876,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -890,7 +895,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "viewOffsetZ", 0.0f), -0.05f, 0.05f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "viewOffsetZ", 0.0f), -0.05f, 0.05f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -910,8 +915,7 @@ void addPauseMenuItems()
 
 		g_scriptconfig.set<bool>("GlobalSettings", "SwapCameraOnWaterEnter", value != 0);
 
-	},
-		g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true), 1)));
+	}, []() -> int { return g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true); }, 1)));
 
 #pragma endregion
 
@@ -931,8 +935,7 @@ void addPauseMenuItems()
 
 		g_scriptconfig.set<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", value != 0);
 
-	},
-		g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true), 1)));
+	}, []() -> int { return g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true); }, 1)));
 
 #pragma endregion
 
@@ -953,7 +956,7 @@ void addPauseMenuItems()
 
 		p.name = "minPitchExt";
 		setCamPreset(p);
-	}, int(Math::FromToRange(-getPresetValueFloat(eCamCinematicMountedCameraMetadata, "minPitch", -10.0f), -30.0, 50.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamCinematicMountedCameraMetadata, "minPitch", -10.0f), -30.0, 50.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -974,7 +977,7 @@ void addPauseMenuItems()
 
 		p.name = "maxPitchExt";
 		setCamPreset(p);
-	}, int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "maxPitch", 15.0f), -25.0, 55.0, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "maxPitch", 15.0f), -25.0, 55.0, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -993,7 +996,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -1012,7 +1015,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, getPresetValueBool(eCamFollowVehicleCameraMetadata, "enableAutoCenter", true), 1)));
+	}, []() -> int { return getPresetValueBool(eCamFollowVehicleCameraMetadata, "enableAutoCenter", true); }, 1)));
 
 #pragma endregion
 
@@ -1031,7 +1034,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "followDistance", 1.075f), -0.925f, 3.075f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "followDistance", 1.075f), -0.925f, 3.075f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -1050,7 +1053,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotScale", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotScale", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -1069,7 +1072,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotOffsetX", 0.0f), -0.5f, 0.5f, 0.0f, 10.0f)), 5)));
+	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotOffsetX", 0.0f), -0.5f, 0.5f, 0.0f, 10.0f)); }, 5)));
 
 #pragma endregion
 
@@ -1088,7 +1091,7 @@ void addPauseMenuItems()
 
 		setCamPreset(p);
 
-	}, int(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "highSpeedShakeSpeed", 40.0f) != FLT_MAX), 1)));
+	}, []() -> int { return int(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "highSpeedShakeSpeed", 40.0f) != FLT_MAX); }, 1)));
 
 #pragma endregion
 
@@ -1118,7 +1121,7 @@ bool SetMenuSlot_Stub(int columnId, int slotIndex, int menuState, int settingInd
 
 		if (it != g_customPrefs.end())
 		{
-			value = it->second.m_value;
+			value = it->second.m_updated();
 		}
 	}
 
@@ -1135,8 +1138,6 @@ void SetPauseMenuPreference_Stub(long long settingIndex, int value, unsigned int
 
 		if (it != g_customPrefs.end())
 		{
-			it->second.m_value = value;
-
 			if (it->second.m_callback)
 			{
 				it->second.m_callback(prefId, value);
@@ -1301,7 +1302,7 @@ void checkCameraFrame()
 
 	auto playerPed = PLAYER::PLAYER_PED_ID();
 
-	if (g_camGameplayDirector->vehicle)
+	if (g_camGameplayDirector && g_camGameplayDirector->vehicle)
 	{
 		entity = AI::GET_IS_TASK_ACTIVE(playerPed, 160) ?
 			PED::GET_VEHICLE_PED_IS_TRYING_TO_ENTER(playerPed) :
@@ -1413,16 +1414,13 @@ void scriptKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtend
 	if (key == vkSaveLayout && GetAsyncKeyState(VK_CONTROL) & 0x8000)
 	{
 		saveCamPresets();
-
 		bShouldPlaySound = true;
 	}
 
 	else if (key == vkReloadPresets)
 	{
 		printToScreen("Reloading camera settings");
-
 		readPresetsFromFile("CameraPresets.xml");
-
 		bShouldUpdatePresets = true;
 	}	
 }
@@ -1437,8 +1435,31 @@ void updateFrontendSound()
 
 			lastSoundPlayedTime = GAMEPLAY::GET_GAME_TIMER();
 		}
+
 		bShouldPlaySound = false;
 	}
+}
+
+void doPostLoad()
+{
+	if (!g_scriptconfig.get<bool>("GlobalSettings", "GamepadFollowCamAutoCenter", true))
+	{
+		g_autoRotatePatch.install();
+	}
+
+	if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true))
+	{
+		g_cinematicCameraEnterWaterPatch1.install();
+	}
+
+	if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true))
+	{
+		g_cinematicCameraEnterWaterPatch2.install();
+	}
+
+	validateAppVersion();
+
+	printToScreen("Loaded");
 }
 
 void mainLoop()
@@ -1451,28 +1472,11 @@ void mainLoop()
 
 		updateFrontendSound();
 
-		if (bInitialized || *g_gameState != Playing) continue;
+		if (bPostLoadFinished || *g_gameState != Playing) continue;
 
-		if (!g_scriptconfig.get<bool>("GlobalSettings", "GamepadFollowCamAutoCenter", true))
-		{
-			g_autoRotatePatch.install();
-		}
+		doPostLoad();
 
-		if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true))
-		{
-			g_cinematicCameraEnterWaterPatch1.install();
-		}
-
-		if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true))
-		{
-			g_cinematicCameraEnterWaterPatch2.install();
-		}
-
-		validateAppVersion();
-
-		printToScreen("Loaded");
-
-		bInitialized = true;
+		bPostLoadFinished = true;
 	}
 }
 
@@ -1682,21 +1686,8 @@ void setupHooks()
 	}
 
 	getCamDirectorFromPool = reinterpret_cast<GetCamDirectorFromPool_t>(result);
-
-	auto hashKey = getHashKey("camgameplaydirector");
-
-	g_camGameplayDirector = getCamDirectorFromPool(&hashKey);
-
-	if (g_camGameplayDirector)
-	{
-		LOG("main(): g_camGameplayDirector found at %p", g_camGameplayDirector);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_camGameplayDirector");
-	}
 }
+
 
 void loadConfigData()
 {
@@ -1704,12 +1695,12 @@ void loadConfigData()
 
 	if (g_scriptconfig.getText(inBuf, "Keybinds", "SaveSettings"))
 	{
-		vkSaveLayout = keyFromString(std::string(inBuf), 0x42);
+		vkSaveLayout = keyFromString(inBuf, 0x42);
 	}
 
 	if (g_scriptconfig.getText(inBuf, "Keybinds", "ReloadSettings"))
 	{
-		vkReloadPresets = keyFromString(std::string(inBuf), VK_F11);
+		vkReloadPresets = keyFromString(inBuf, VK_F11);
 	}
 
 	if (!g_scriptconfig.get<bool>("General", "UseCustomPresets", true))
@@ -1725,13 +1716,7 @@ void loadConfigData()
 
 void scriptMain()
 {
-	// script is being reloaded or something.. skip to loop
-	if (bDidLoad)
-	{
-		mainLoop();
-	}
-
-	else
+	if (!bDidLoad)
 	{
 		readPresetsFromFile("CameraPresets.xml");
 
@@ -1741,13 +1726,18 @@ void scriptMain()
 
 		setupHooks();
 
-		checkCameraFrame(); // pump camera frame for addPauseMenuItems();
+		// pump camera frame for addPauseMenuItems();
+		checkCameraFrame(); 
 
 		addPauseMenuItems();
 
 		bDidLoad = true;
 	}
-	
+
+	unsigned int camGameplayDirectorHash = 0x3E9ED27Fu;
+	// always need to grab this since it will be different after every game reload.
+	g_camGameplayDirector = getCamDirectorFromPool(&camGameplayDirectorHash);
+
 	// begin infinite loop...
 	mainLoop();
 }

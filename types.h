@@ -2,15 +2,18 @@
 
 typedef void(*CMenuItemInvokedCallback)(int settingIndex, int value);
 
+typedef int(*CMenuItemUpdatedCallback)();
+
 struct CustomMenuPref
 {
 	CMenuItemInvokedCallback m_callback;
+	CMenuItemUpdatedCallback m_updated;
 
-	int m_value, m_resetvalue;
+	int m_resetvalue;
 
-	CustomMenuPref(CMenuItemInvokedCallback callback, int value, int resetValue) :
+	CustomMenuPref(CMenuItemInvokedCallback callback, CMenuItemUpdatedCallback updated, int resetValue) :
 		m_callback(callback),
-		m_value(value),
+		m_updated(updated),
 		m_resetvalue(resetValue) {
 	}
 };
@@ -67,3 +70,8 @@ struct CamMetadataPreset
 	}
 };
 
+struct GxtEntry
+{
+	const char * m_text;
+	const char * m_alias;
+};

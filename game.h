@@ -66,7 +66,7 @@ struct CPauseMenuItem
 	short unkCount; //0x10-0x12
 	short unkCount1; //0x12-0x14
 	char pad0[0x4]; //0x14-0x18
-	unsigned char targetSettingIdx; // 0x18-0x19 Index of the setting that is changed when this item is invoked
+	unsigned char settingId; // 0x18-0x19 Index of the setting that is changed when this item is invoked
 	char actionType; //0x19-0x1A i.e. slider, on_off etc.
 	char type; //0x1A-0x1B 1 = default button, 2 = dynamic 8 = immutable text block
 	char stateFlags; //0x1B-0x1C // 1 = disabled

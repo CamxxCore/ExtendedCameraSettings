@@ -7,15 +7,36 @@ class CConfig
 public:
 	CConfig(const char* fileName) {
 
-		TCHAR inBuf[0x100];
+		TCHAR inBuf[MAX_PATH];
 
-		GetCurrentDirectory(MAX_PATH, inBuf);
+		GetCurrentDirectory(sizeof(inBuf), inBuf);
 
 		strcat_s(inBuf, "\\");
 
 		strcat_s(inBuf, fileName);
 
-		strcpy_s(filename, 0x100, inBuf);
+		strcpy_s(filename, inBuf);
+	}	
+
+	bool getText(char * outBuffer, const char * section, const char * key) const
+	{
+		GetPrivateProfileString(TEXT(section),
+			TEXT(key),
+			NULL,
+			outBuffer,
+			sizeof(outBuffer),
+			TEXT(filename));
+
+		return outBuffer && 
+			GetLastError() == ERROR_SUCCESS;
+	}
+
+	void setText(const char * section, const char * key, const char * value) const
+	{
+		WritePrivateProfileString(TEXT(section),
+			TEXT(key),
+			TEXT(value),
+			filename);
 	}
 
 	template <typename T>
@@ -23,7 +44,7 @@ public:
 	{
 		T result{};
 
-		TCHAR inBuf[0x100];
+		TCHAR inBuf[80];
 
 		if (!getText(inBuf, section, key))
 			return defaultValue;
@@ -40,23 +61,11 @@ public:
 		else
 		{
 			sstream << inBuf;
-		}	
+		}
 
 		sstream >> result;
 
 		return result;
-	}
-
-	bool getText(char * outBuffer, const char * section, const char * key) const
-	{
-		GetPrivateProfileString(TEXT(section),
-			TEXT(key),
-			NULL,
-			outBuffer,
-			sizeof(outBuffer),
-			TEXT(filename));
-
-		return outBuffer && GetLastError() == ERROR_SUCCESS;
 	}
 
 	template <typename T>
@@ -76,10 +85,7 @@ public:
 			sstream << val;
 		}
 		
-		WritePrivateProfileString (TEXT(section),
-			                       TEXT(key),
-			                       TEXT(sstream.str().c_str()),
-			                       filename);
+		setText(section, key, sstream.str().c_str());
 	}
 
 	TCHAR filename[MAX_PATH];

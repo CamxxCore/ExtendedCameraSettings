@@ -5,7 +5,7 @@ class AddressMgr;
 extern AddressMgr g_addresses;
 
 #define __MAJOR_REV__ 1.1
-#define __MINOR_REV__ .01
+#define __MINOR_REV__ .02
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -18,6 +18,8 @@ extern AddressMgr g_addresses;
 #define WriteDouble(a,b)(*(double*)a = b)
 
 #define WriteBool(a,b)(*(bool*)a = b)
+
+#define MAX_STRING 256
 
 #include <windows.h>
 
@@ -43,7 +45,6 @@ extern AddressMgr g_addresses;
 #include "types.h"
 
 #include "tinyxml2.h"
-
 #include "XMLHelper.h"
 
 #include "Utility.h"
@@ -56,23 +57,25 @@ extern AddressMgr g_addresses;
 
 #include "Hooking.h"
 
-inline void printToScreen(const char * fmt, ...)
+inline void printToScreen(const char * format, ...)
 {
-	char inBuf[0x100];
+	char inBuf[MAX_STRING];
 
 	va_list va;
 
-	va_start(va, fmt);
+	va_start(va, format);
 
-	vsprintf_s(inBuf, fmt, va);
+	vsprintf_s(inBuf, format, va);
 
 	va_end(va);
 
-	char buffer[0x100];
+	char szText[MAX_STRING];
 
-	sprintf_s(buffer, "~y~ExtendedCameraSettings~w~\n%s", inBuf);
+	auto prefix = Utility::GetModuleName(Utility::GetActiveModule());
 
-	notifyAboveMap(buffer);
+	sprintf_s(szText, "~y~%s~w~\n%s", prefix.c_str(), inBuf);
+
+	notifyAboveMap(szText);
 }
 
 void mainInit(HMODULE hModule);

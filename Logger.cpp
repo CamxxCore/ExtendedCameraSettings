@@ -19,7 +19,7 @@ void Logger::Initialize(std::string name)
 
 void Logger::Write(const char * format, ...) const
 {
-	char inBuff[0x100];
+	char inBuff[MAX_STRING];
 
 	va_list va;
 
@@ -29,11 +29,15 @@ void Logger::Write(const char * format, ...) const
 
 	va_end(va);
 
-	OutputDebugStringA(inBuff);
+	char szText[MAX_STRING];
+
+	sprintf_s(szText, "[%s] [LOG] %s\n", Utility::GetShortTimeString().c_str(), inBuff);
+
+	OutputDebugStringA(szText);
 
 	std::ofstream ofs(logName, std::ios::app);
 
-	ofs << '[' << Utility::GetShortTimeString() << "] [LOG] " << inBuff << "\n";
+	ofs << szText;
 
 	ofs.close();
 }
