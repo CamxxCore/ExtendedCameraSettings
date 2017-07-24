@@ -32,20 +32,14 @@ PVOID HookManager::AllocateFunctionStub(PVOID origin, PVOID function, int type)
 	static void* g_currentStub = nullptr;
 
 	if (!g_currentStub) {
-		ULONG_PTR minAddr;
-		ULONG_PTR maxAddr;
-
 		SYSTEM_INFO si;
 		GetSystemInfo(&si);
-		minAddr = (ULONG_PTR)si.lpMinimumApplicationAddress;
-		maxAddr = (ULONG_PTR)si.lpMaximumApplicationAddress;
+
+		ULONG_PTR minAddr = (ULONG_PTR)si.lpMinimumApplicationAddress;
 
 		if ((ULONG_PTR)origin > MAX_MEMORY_RANGE &&
 			minAddr < (ULONG_PTR)origin - MAX_MEMORY_RANGE)
 			minAddr = (ULONG_PTR)origin - MAX_MEMORY_RANGE;
-
-		if (maxAddr >(ULONG_PTR)origin + MAX_MEMORY_RANGE)
-			maxAddr = (ULONG_PTR)origin + MAX_MEMORY_RANGE;
 
 		LPVOID pAlloc = origin;
 

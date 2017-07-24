@@ -5,18 +5,27 @@
 class CConfig
 {
 public:
-	CConfig(const char* fileName) {
+	CConfig() { }
 
-		TCHAR inBuf[MAX_PATH];
+	explicit CConfig(const char* fileName) : CConfig(fileName, false) { }
 
-		GetCurrentDirectory(sizeof(inBuf), inBuf);
+	explicit CConfig(const char* fileName, bool customPath) {
 
-		strcat_s(inBuf, "\\");
+		if (!customPath)
+		{
+			TCHAR inBuf[MAX_PATH];
 
-		strcat_s(inBuf, fileName);
+			GetCurrentDirectory(sizeof(inBuf), inBuf);
 
-		strcpy_s(filename, inBuf);
-	}	
+			strcat_s(inBuf, "\\");
+
+			strcat_s(inBuf, fileName);
+
+			strcpy_s(filename, inBuf);
+		}
+
+		else strcpy_s(filename, fileName);
+	}
 
 	bool getText(char * outBuffer, const char * section, const char * key) const
 	{

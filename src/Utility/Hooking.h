@@ -34,7 +34,7 @@ void CallHook<T>::remove()
 template <typename T>
 CallHook<T>::~CallHook()
 {
-	remove();
+	CallHook<T>::remove();
 }
 
 class HookManager
@@ -52,7 +52,7 @@ public:
 		*reinterpret_cast<int32_t*>(address + 1) = 
 			static_cast<int32_t>((intptr_t)pFunc - (intptr_t)address - 5);
 
-		return new CallHook<T>(address, target);
+		return new CallHook<decltype(func)>(address, target);
 	}
 	
 	static PVOID AllocateFunctionStub(PVOID origin, PVOID function, int type);

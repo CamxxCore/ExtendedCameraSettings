@@ -15,7 +15,7 @@ void AddressMgr::clear()
 	items.clear();
 }
 
-size_t AddressMgr::size()
+size_t AddressMgr::size() const
 {
 	return items.size();
 }
@@ -46,7 +46,7 @@ AddressPool* & AddressMgr::getOrCreate(std::string key)
 
 AddressMgr::~AddressMgr()
 {
-	for (auto it = items.begin(); it != items.end(); it++)
+	for (auto it = items.begin(); it != items.end(); ++it)
 	{
 		delete it->second;
 	}

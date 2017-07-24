@@ -1,8 +1,16 @@
 #pragma once
 
 typedef void(*CMenuItemInvokedCallback)(int settingIndex, int value);
-
 typedef int(*CMenuItemUpdatedCallback)();
+
+enum CamPresetType
+{
+	CPT_BOOLEAN,
+	CPT_INTEGER,
+	CPT_UINTEGER,
+	CPT_FLOAT,
+	CPT_DOUBLE
+};
 
 struct CustomMenuPref
 {
@@ -68,10 +76,4 @@ struct CamMetadataPreset
 
 		return sstream.str();
 	}
-};
-
-struct GxtEntry
-{
-	const char * m_text;
-	const char * m_alias;
 };

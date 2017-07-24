@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="tinyxml2">
+      <UniqueIdentifier>{e7b6a36b-0a7e-4e62-aa32-8b70f32f16f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{e4885a9f-cd62-450e-bade-501da8c4f6fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\Utility">
+      <UniqueIdentifier>{b7cb5577-18ba-4f00-a8c1-6159b9b042a9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="Game.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\XMLHelper.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\Math.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\Logger.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\Hooking.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\General.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\AddressMgr.cpp">
+      <Filter>src\Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tinyxml2\tinyxml2.cpp">
+      <Filter>tinyxml2</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="types.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="strings.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="presets.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="Game.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="functions.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="enums.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\XMLHelper.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\pattern.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\patch.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\MemAddr.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Math.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Logger.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\keymap.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Hooking.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\General.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\config.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\AddressMgr.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tinyxml2\tinyxml2.h">
+      <Filter>tinyxml2</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ExtendedCameraSettings.rc" />
+  </ItemGroup>
+</Project>

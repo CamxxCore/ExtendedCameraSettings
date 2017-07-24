@@ -119,7 +119,7 @@ namespace tinyxml2
 {
 
 struct Entity {
-    const char* pattern;
+    const char* BytePattern;
     int length;
     char value;
 };
@@ -318,7 +318,7 @@ const char* StrPair::GetStr()
                         bool entityFound = false;
                         for( int i = 0; i < NUM_ENTITIES; ++i ) {
                             const Entity& entity = entities[i];
-                            if ( strncmp( p + 1, entity.pattern, entity.length ) == 0
+                            if ( strncmp( p + 1, entity.BytePattern, entity.length ) == 0
                                     && *( p + entity.length + 1 ) == ';' ) {
                                 // Found an entity - convert.
                                 *q = entity.value;
@@ -638,7 +638,7 @@ char* XMLDocument::Identify( char* p, XMLNode** node )
         return p;
     }
 
-    // These strings define the matching patterns:
+    // These strings define the matching BytePatterns:
     static const char* xmlHeader		= { "<?" };
     static const char* commentHeader	= { "<!--" };
     static const char* cdataHeader		= { "<![CDATA[" };
@@ -2239,16 +2239,16 @@ void XMLPrinter::PrintString( const char* p, bool restricted )
                         Print( "%.*s", toPrint, p );
                         p += toPrint;
                     }
-                    bool entityPatternPrinted = false;
+                    bool entityBytePatternPrinted = false;
                     for( int i=0; i<NUM_ENTITIES; ++i ) {
                         if ( entities[i].value == *q ) {
-                            Print( "&%s;", entities[i].pattern );
-                            entityPatternPrinted = true;
+                            Print( "&%s;", entities[i].BytePattern );
+                            entityBytePatternPrinted = true;
                             break;
                         }
                     }
-                    if ( !entityPatternPrinted ) {
-                        // TIXMLASSERT( entityPatternPrinted ) causes gcc -Wunused-but-set-variable in release
+                    if ( !entityBytePatternPrinted ) {
+                        // TIXMLASSERT( entityBytePatternPrinted ) causes gcc -Wunused-but-set-variable in release
                         TIXMLASSERT( false );
                     }
                     ++p;

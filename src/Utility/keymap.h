@@ -201,7 +201,7 @@ static std::map<std::string, DWORD> virtualkey_map = {
 	{ "OEMClear", 0xFE }
 };
 
-inline DWORD keyFromString(std::string keyStr, DWORD default)
+inline DWORD keyFromString(std::string keyStr, DWORD defaultKey)
 {
 	auto it = virtualkey_map.find(keyStr);
 	if (it != virtualkey_map.end())
@@ -209,5 +209,5 @@ inline DWORD keyFromString(std::string keyStr, DWORD default)
 		return it->second;
 	}
 
-	return default;
+	return defaultKey;
 }

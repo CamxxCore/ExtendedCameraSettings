@@ -17,9 +17,11 @@ private:
 
 public:
 	void clear();
-	size_t size();
+	size_t size() const;
 	void insert(std::string category, std::string key, MemAddr address);
 	AddressPool*& get(std::string category);
 	AddressPool*& getOrCreate(std::string category);
 	~AddressMgr();
 };
+
+extern AddressMgr g_addresses;

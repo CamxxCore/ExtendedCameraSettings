@@ -1,53 +1,27 @@
-
 #include "stdafx.h"
 
 #pragma warning(disable : 4244 4305) 
 
-typedef const char *(*GetGlobalTextEntry_t)(void * unk, unsigned int hashName);
+bytepatch_t g_enterWaterSwapPatch, 
+g_vehicleDestroyedSwapPatch, g_autoRotatePatch;
 
-typedef void(*SetPauseMenuPreference_t)(long long settingIndex, int value, unsigned int unk);
+CallHook<const char*(*)(void*, unsigned int)> * g_getGxtEntry;
 
-typedef bool(*SetMenuSlot_t)(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bIsSlotUpdate);
+CallHook<void(*)(long long, int, unsigned int)> * g_setPauseMenuPreference;
 
-typedef void(*ResetCameraProfileSettings_t)();
+CallHook<bool(*)(int, int, int, int, int, int, const char *, bool, bool)> * g_addSliderFn, *g_addToggleFn;
 
-typedef camBaseDirector* (*GetCamDirectorFromPool_t)(unsigned int * hashName);
-
-HMODULE g_currentModule;
-
-AddressMgr g_addresses;
-
-eGameState * g_gameState;
-
-bytepatch_t g_cinematicCameraEnterWaterPatch1,
-g_cinematicCameraEnterWaterPatch2,
-g_autoRotatePatch;
-
-CallHook<GetGlobalTextEntry_t> * g_getGxtEntry;
-
-CallHook<SetPauseMenuPreference_t> * g_setPauseMenuPreference;
-
-CallHook<SetMenuSlot_t> * g_createSliderItem;
-
-CallHook<SetMenuSlot_t> * g_createToggleItem;
-
-CallHook<ResetCameraProfileSettings_t> * g_resetCameraSettings;
-
-rage::pgCollection<camBaseDirector*> * g_camDirectorPool;
-
-rage::pgCollection<camMetadataRef*> * g_metadataCollection;
-
-rage::pgCollection<CPauseMenuInstance> g_activeMenuArray;
-
-GetCamDirectorFromPool_t getCamDirectorFromPool;
+CallHook<void(*)()> * g_resetCameraSettings;
 
 std::map<unsigned int, std::string> g_textEntries;
 
 static std::mutex g_textMutex;
 
-CConfig g_scriptconfig = CConfig("ExtendedCameraSettings.ini");
+CConfig g_scriptconfig;
 
-const int kMenuItemsCount = 24;
+Game g_game;
+
+const int kMenuItemsCount = 25;
 
 const int kSettingsStartIndex = 230;
 
@@ -83,18 +57,39 @@ std::map<int, std::string> g_dataFileTypeMap = {
 };
 
 std::map<eMetadataHash, std::string> g_metadataHashMap = {
-	{ eCamFirstPersonShooterCameraMetadata, "camFirstPersonShooterCameraMetadata" },
-	{ eCamFollowVehicleCameraMetadata, "camFollowVehicleCameraMetadata" },
-	{ eCamFollowPedCameraMetadata, "camFollowPedCameraMetadata" },
-	{ eCamCinematicMountedCameraMetadata, "camCinematicMountedCameraMetadata" },
-	{ eCamThirdPersonPedAimCameraMetadata, "camThirdPersonPedAimCameraMetadata" },
+	{ eCamFirstPersonShooterCameraMetadata, "firstPersonPedCam" },
+	{ eCamFollowVehicleCameraMetadata, "thirdPersonVehicleCam" },
+	{ eCamFollowPedCameraMetadata, "thirdPersonPedCam" },
+	{ eCamCinematicMountedCameraMetadata, "firstPersonVehicleCam" },
+	{ eCamThirdPersonPedAimCameraMetadata, "thirdPersonAimCam" },
 };
+
+void printToScreen(const char * format, ...)
+{
+	char inBuf[MAX_STRING];
+
+	va_list va;
+
+	va_start(va, format);
+
+	vsprintf_s(inBuf, format, va);
+
+	va_end(va);
+
+	char szText[MAX_STRING];
+
+	auto prefix = Utility::GetModuleName(Utility::GetActiveModule());
+
+	sprintf_s(szText, "~y~%s~w~\n%s", prefix.c_str(), inBuf);
+
+	notifyAboveMap(szText);
+}
 
 void addOffsetsForGameVersion(int version)
 {
 	#pragma region firstPersonCamera
 
-	auto offsets = g_addresses.getOrCreate("camFirstPersonShooterCameraMetadata");
+	auto offsets = g_addresses.getOrCreate("firstPersonPedCam");
 
 	offsets->insert("fov", 36); //F3 44 0F 5C 48 ? F3 41 0F 59 F8 
 	offsets->insert("minPitch", 84); //F3 0F 10 40 ? F3 0F 59 05 ? ? ? ? F3 0F 11 87 ? ? ? ? 
@@ -103,7 +98,7 @@ void addOffsetsForGameVersion(int version)
 	offsets->insert("viewOffsetX", 64); //F3 0F 10 4A ? F3 0F 10 42 ? 44 0F 29 ? ? ? ? ?
 	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
 	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
-	offsets->insert("altMinYaw", version < v1_0_505_2_STEAM ? 696 : version < v1_0_877_1_STEAM ? 712 : 760); //48 8B 81 ? ? ? ? EB E6
+	offsets->insert("altMinYaw", version < VER_1_0_505_2_STEAM ? 696 : version < VER_1_0_877_1_STEAM ? 712 : 760); //48 8B 81 ? ? ? ? EB E6
 	offsets->insert("altMaxYaw", offsets->map["altMinYaw"].add(4)); //+4
 	offsets->insert("altMinPitch", offsets->map["altMinYaw"].add(8)); //+8
 	offsets->insert("altMaxPitch", offsets->map["altMinYaw"].add(12)); //+C
@@ -112,15 +107,15 @@ void addOffsetsForGameVersion(int version)
 
 	#pragma region cinematicMountedCamera
 
-	offsets = g_addresses.getOrCreate("camCinematicMountedCameraMetadata");
+	offsets = g_addresses.getOrCreate("firstPersonVehicleCam");
 
-	offsets->insert("fov", version < v1_0_877_1_STEAM ? 80 : 84); //F3 0F 10 48 ? F3 0F 11 89 ? ? ? ?
-	offsets->insert("minPitch", version < v1_0_505_2_STEAM ? 808 : version < v1_0_877_1_STEAM ? 824 : version < v1_0_944_2_STEAM ? 872 : 888); //F3 0F 10 ? ? ? ? ? 0F 2F D0 72 10 F3 0F 10 ? ? 03 00 00
+	offsets->insert("fov", version < VER_1_0_877_1_STEAM ? 80 : 84); //F3 0F 10 48 ? F3 0F 11 89 ? ? ? ?
+	offsets->insert("minPitch", version < VER_1_0_505_2_STEAM ? 808 : version < VER_1_0_877_1_STEAM ? 824 : version < VER_1_0_944_2_STEAM ? 872 : 888); //F3 0F 10 ? ? ? ? ? 0F 2F D0 72 10 F3 0F 10 ? ? 03 00 00
 	offsets->insert("maxPitch", offsets->map["minPitch"].add(4));
-	offsets->insert("minPitchExt", version < v1_0_505_2_STEAM ? 776 : version < v1_0_877_1_STEAM ? 792 : version < v1_0_944_2_STEAM ? 840 : 856); //F3 0F 59 87 ? ? ? ? F3 41 0F 59 C4 
-	offsets->insert("maxPitchExt", version < v1_0_505_2_STEAM ? 780 : version < v1_0_877_1_STEAM ? 796 : version < v1_0_944_2_STEAM ? 844 : 860);
-	offsets->insert("minSpeedForAutoCorrect", version < v1_0_505_2_STEAM ? 680 : version < v1_0_877_1_STEAM ? 696 : version < v1_0_944_2_STEAM ? 744 : 760); //0F 2F B0 ? ? ? ? 0F 82 ? 02 00 00
-	offsets->insert("viewOffsetX", version < v1_0_877_1_STEAM ? 80 : 96);  //F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 0F 11 45 ? ? 84 ?
+	offsets->insert("minPitchExt", version < VER_1_0_505_2_STEAM ? 776 : version < VER_1_0_877_1_STEAM ? 792 : version < VER_1_0_944_2_STEAM ? 840 : 856); //F3 0F 59 87 ? ? ? ? F3 41 0F 59 C4 
+	offsets->insert("maxPitchExt", version < VER_1_0_505_2_STEAM ? 780 : version < VER_1_0_877_1_STEAM ? 796 : version < VER_1_0_944_2_STEAM ? 844 : 860);
+	offsets->insert("minSpeedForAutoCorrect", version < VER_1_0_505_2_STEAM ? 680 : version < VER_1_0_877_1_STEAM ? 696 : version < VER_1_0_944_2_STEAM ? 744 : 760); //0F 2F B0 ? ? ? ? 0F 82 ? 02 00 00
+	offsets->insert("viewOffsetX", version < VER_1_0_877_1_STEAM ? 80 : 96);  //F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 44 0F 10 ? ? F3 0F 11 45 ? ? 84 ?
 	offsets->insert("viewOffsetY", offsets->map["viewOffsetX"].add(4));
 	offsets->insert("viewOffsetZ", offsets->map["viewOffsetX"].add(8));
 
@@ -128,39 +123,39 @@ void addOffsetsForGameVersion(int version)
 
 	#pragma region followVehicleCamera
 
-	offsets = g_addresses.getOrCreate("camFollowVehicleCameraMetadata");
+	offsets = g_addresses.getOrCreate("thirdPersonVehicleCam");
 
 	offsets->insert("fov", 48); //F3 0F 59 48 ? 0F 2F C8 72 2C
-	offsets->insert("highSpeedShakeSpeed", version < v1_0_505_2_STEAM ? 1176 : version < v1_0_944_2_STEAM ? 1192 : 1208); //48 81 C7 ? ? ? ? 8B 6F 08 shakesettings+0x10
-	offsets->insert("enableAutoCenter", version < v1_0_505_2_STEAM ? 877 : version < v1_0_944_2_STEAM ? 893 : 909); //80 ? ? ? ? ? ? 75 14 48 8B 83 ? ? ? ? 
-	offsets->insert("autoCenterLerpScale", version < v1_0_505_2_STEAM ? 892 : version < v1_0_944_2_STEAM ? 908 : 924); //F3 0F 10 88 ? ? ? ? 73 06 
-	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328); //F3 0F 10 80 ? ? ? ? C3 4C 8B 81 ? ? ? ? 49 81 C0 ? ? ? ? 
-	offsets->insert("pivotScale", version < v1_0_791_2_STEAM ? 164 : version < v1_0_944_2_STEAM ? 172 : 180); //F3 0F 10 88 ? ? ? ? 0F 28 C1 C3 
-	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248); //F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
-
+	offsets->insert("highSpeedShakeSpeed", version < VER_1_0_505_2_STEAM ? 1176 : version < VER_1_0_944_2_STEAM ? 1192 : 1208); //48 81 C7 ? ? ? ? 8B 6F 08 shakesettings+0x10
+	offsets->insert("enableAutoCenter", version < VER_1_0_505_2_STEAM ? 877 : version < VER_1_0_944_2_STEAM ? 893 : 909); //80 ? ? ? ? ? ? 75 14 48 8B 83 ? ? ? ? 
+	offsets->insert("autoCenterLerpScale", version < VER_1_0_505_2_STEAM ? 892 : version < VER_1_0_944_2_STEAM ? 908 : 924); //F3 0F 10 88 ? ? ? ? 73 06 
+	offsets->insert("followDistance", version < VER_1_0_791_2_STEAM ? 312 : version < VER_1_0_944_2_STEAM ? 320 : 328); //F3 0F 10 80 ? ? ? ? C3 4C 8B 81 ? ? ? ? 49 81 C0 ? ? ? ? 
+	offsets->insert("pivotScale", version < VER_1_0_791_2_STEAM ? 164 : version < VER_1_0_944_2_STEAM ? 172 : 180); //F3 0F 10 88 ? ? ? ? 0F 28 C1 C3 
+	offsets->insert("pivotOffsetX", version < VER_1_0_791_2_STEAM ? 232 : version < VER_1_0_944_2_STEAM ? 240 : version < VER_1_0_1011_1_STEAM ? 256 : 248); //F3 0F 10 B0 ? ? ? ? F3 0F 10 B8 ? ? ? ? 48 8B 05 ? ? ? ? 
+	offsets->insert("speedZoomStartSpeed", version < VER_1_0_505_2_STEAM ? 1136 : version < VER_1_0_944_2_STEAM ? 1152 : 1168); //48 8B BB ? ? ? ? F3 0F 10 3D ? ? ? ? 48 81 C7 ? ? ? ?
+	offsets->insert("speedZoomEndSpeed", offsets->map["speedZoomStartSpeed"].add(4));
 	#pragma endregion
 
 	#pragma region followPedCamera
 
-	offsets = g_addresses.getOrCreate("camFollowPedCameraMetadata");
+	offsets = g_addresses.getOrCreate("thirdPersonPedCam");
 
 	offsets->insert("fov", 48);
-	offsets->insert("sprintShakeSpeed", version < v1_0_505_2_STEAM ? 2068 : 2092);
-	offsets->insert("minPitch", version < v1_0_505_2_STEAM ? 580 : version < v1_0_944_2_STEAM ? 596 : 612);
-	offsets->insert("maxPitch", version < v1_0_505_2_STEAM ? 584 : version < v1_0_944_2_STEAM ? 600 : 616);
-	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248);
-	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328);
+	offsets->insert("sprintShakeSpeed", version < VER_1_0_505_2_STEAM ? 2068 : 2092);
+	offsets->insert("minPitch", version < VER_1_0_505_2_STEAM ? 580 : version < VER_1_0_944_2_STEAM ? 596 : 612);
+	offsets->insert("maxPitch", version < VER_1_0_505_2_STEAM ? 584 : version < VER_1_0_944_2_STEAM ? 600 : 616);
+	offsets->insert("pivotOffsetX", version < VER_1_0_791_2_STEAM ? 232 : version < VER_1_0_944_2_STEAM ? 240 : version < VER_1_0_1011_1_STEAM ? 256 : 248);
+	offsets->insert("followDistance", version < VER_1_0_791_2_STEAM ? 312 : version < VER_1_0_944_2_STEAM ? 320 : 328);
 
 	#pragma endregion
 
-
 	#pragma region pedAimCamera
 
-	offsets = g_addresses.getOrCreate("camThirdPersonPedAimCameraMetadata");
+	offsets = g_addresses.getOrCreate("thirdPersonAimCam");
 
 	offsets->insert("fov", 48);
-	offsets->insert("pivotOffsetX", version < v1_0_791_2_STEAM ? 232 : version < v1_0_944_2_STEAM ? 240 : version < v1_0_1011_1_STEAM ? 256 : 248);
-	offsets->insert("followDistance", version < v1_0_791_2_STEAM ? 312 : version < v1_0_944_2_STEAM ? 320 : 328);
+	offsets->insert("pivotOffsetX", version < VER_1_0_791_2_STEAM ? 232 : version < VER_1_0_944_2_STEAM ? 240 : version < VER_1_0_1011_1_STEAM ? 256 : 248);
+	offsets->insert("followDistance", version < VER_1_0_791_2_STEAM ? 312 : version < VER_1_0_944_2_STEAM ? 320 : 328);
 
 	#pragma endregion
 
@@ -168,18 +163,18 @@ void addOffsetsForGameVersion(int version)
 
 	offsets = g_addresses.getOrCreate("CVehicleModelInfo");
 
-	offsets->insert("thirdPersonCameraHash", version < v1_0_505_2_STEAM ? 1120 : version <  v1_0_791_2_STEAM ? 1168 : 1184);
+	offsets->insert("thirdPersonCameraHash", version < VER_1_0_505_2_STEAM ? 1120 : version <  VER_1_0_791_2_STEAM ? 1168 : 1184);
 	offsets->insert("firstPersonCameraHash", offsets->map["thirdPersonCameraHash"].add(0xC));
 	#pragma endregion
 }
 
 void readPresetsFromFile(std::string filename)
 {
+	auto filePath = Utility::GetWorkingDirectory() + filename;
+
 	g_camPresets.clear();
 
 	tinyxml2::XMLDocument doc;
-
-	auto filePath = Utility::GetWorkingDirectory() + "\\" + filename;
 
 	auto result = doc.LoadFile(filePath.c_str());
 
@@ -189,7 +184,7 @@ void readPresetsFromFile(std::string filename)
 		{
 		case XML_ERROR_FILE_NOT_FOUND:
 		{
-			LOG("Creating new document %s", filePath.c_str());
+			LOG("Creating new document %s", filename.c_str());
 			auto pRoot = doc.NewElement("cameraPresets");
 			doc.InsertFirstChild(pRoot);
 			doc.SaveFile(filePath.c_str());
@@ -197,7 +192,7 @@ void readPresetsFromFile(std::string filename)
 		}
 
 		case XML_ERROR_FILE_READ_ERROR:
-			LOG("readPresetsFromFile(): Encountered a read error loading the file %s (%d)", filePath.c_str(), result);
+			LOG("readPresetsFromFile(): Encountered a read error loading the file %s (%d)", filename.c_str(), result);
 			return;
 
 		case XML_ERROR_EMPTY_DOCUMENT:
@@ -206,7 +201,7 @@ void readPresetsFromFile(std::string filename)
 
 		case XML_ERROR_FILE_COULD_NOT_BE_OPENED:
 		default:
-			LOG("readPresetsFromFile(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
+			LOG("readPresetsFromFile(): Encountered an error loading the file %s (%d)", filename.c_str(), result);
 			return;
 		}
 	}
@@ -299,27 +294,27 @@ void readPresetsFromFile(std::string filename)
 			}
 		}
 
-		g_camPresets.insert(make_pair(parseHashString(modelName), presets));
+		g_camPresets.insert(make_pair(Utility::StringToHash(modelName), presets));
 	});
 }
 
 void writePresetsToFile(std::string filename, unsigned int modelHash, std::vector<CamMetadataPreset> presets)
 {
-	if (!Utility::FileExists(filename))
+	auto filePath = Utility::GetWorkingDirectory() + filename;
+
+	if (!Utility::FileExists(filePath))
 	{
-		LOG("writePresetsToFile(): File not found (%s)", filename.c_str());
+		LOG("writePresetsToFile(): File not found (%s)", filePath.c_str());
 		return;
 	}
 
 	tinyxml2::XMLDocument doc;
 
-	auto filePath = Utility::GetWorkingDirectory() + "\\" + filename;
-
 	auto result = doc.LoadFile(filePath.c_str());
 
 	if (result != XML_SUCCESS)
 	{
-		LOG("writePresetsToFile(): Encountered an error loading the file %s (%d)", filePath.c_str(), result);
+		LOG("writePresetsToFile(): Encountered an error loading the file %s (%d)", filename.c_str(), result);
 		return;
 	}
 
@@ -333,7 +328,7 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 	auto elem = XMLHelper::FindIf(rootElement, "camPreset", [modelHash](XMLElement* e) -> bool {
 		auto str = e->FirstChildElement("modelName")->GetText();
-		return modelHash == parseHashString(str);
+		return modelHash == Utility::StringToHash(str);
 	});
 
 	if (!elem)
@@ -346,7 +341,8 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 
 		std::string modelName;
 
-		getVehicleModelName(modelHash, modelName);
+		STREAMING::IS_MODEL_A_VEHICLE(modelHash) ? 
+			getVehicleModelName(modelHash, modelName) : getPedModelName(modelHash, modelName);
 
 		subNode->SetText(modelName.c_str());
 
@@ -396,7 +392,7 @@ void writePresetsToFile(std::string filename, unsigned int modelHash, std::vecto
 		childElem->LinkEndChild(node);
 	}
 
-	doc.SaveFile(filename.c_str());
+	doc.SaveFile(filePath.c_str());
 }
 
 void writePresetToFile(std::string filename, unsigned int modelHash, CamMetadataPreset preset)
@@ -420,7 +416,7 @@ const char * getGxtEntry_Stub(void * unk, unsigned int hashName)
 
 unsigned int addGxtEntry(std::string key, std::string text)
 {
-	auto hashKey = getHashKey(key.c_str());
+	auto hashKey = Utility::GetHashKey(key);
 
 	std::unique_lock<std::mutex> lock(g_textMutex);
 
@@ -429,9 +425,11 @@ unsigned int addGxtEntry(std::string key, std::string text)
 	return hashKey;
 }
 
-inline CPauseMenuInstance * lookupMenuForIndex(int menuIndex)
+inline UIMenu * lookupMenuForIndex(int menuIndex)
 {
-	for (auto it = g_activeMenuArray.begin(); it != g_activeMenuArray.end(); it++)
+	auto menuPool = g_game.GetActiveMenuPool();
+
+	for (auto it = menuPool->begin(); it != menuPool->end(); it++)
 	{
 		if (!it || it->menuId != menuIndex)
 			continue;
@@ -443,7 +441,9 @@ inline CPauseMenuInstance * lookupMenuForIndex(int menuIndex)
 
 camBaseObjectMetadata * getCamMetadataForHash(unsigned int hashName)
 {
-	for (auto it = g_metadataCollection->begin(); it != g_metadataCollection->end(); it++)
+	auto metadataPool = g_game.GetCamMetadataPool();
+
+	for (auto it = metadataPool->begin(); it != metadataPool->end(); it++)
 	{
 		if (!it) continue;
 
@@ -459,13 +459,18 @@ camBaseObjectMetadata * getCamMetadataForHash(unsigned int hashName)
 	return nullptr;
 }
 
-void setupMenuItem(CPauseMenuItem * item, std::string gxtAlias, std::string text, int menuIndex, int type, int actionType, int settingIdx, int stateFlags)
+void setupMenuItem(UIMenuItem * item, std::string gxtAlias, std::string text, int menuIndex, int type, int actionType, int settingIdx, int stateFlags)
 {
 	item->textHash = addGxtEntry(gxtAlias, text);
+
 	item->menuIndex = menuIndex;
+
 	item->type = type;
+
 	item->actionType = actionType;
+
 	item->settingId = static_cast<unsigned char>(settingIdx);
+
 	item->stateFlags = stateFlags;
 }
 
@@ -616,11 +621,11 @@ void addPauseMenuItems()
 
 	auto newCount = pMenu->itemCount + kMenuItemsCount;
 
-	auto newSize = newCount * sizeof(CPauseMenuItem);
+	auto newSize = newCount * sizeof(UIMenuItem);
 
-	auto newItemArray = new CPauseMenuItem[newCount];
+	auto newItemArray = new UIMenuItem[newCount];
 
-	memcpy_s(newItemArray, newSize, pMenu->items, pMenu->itemCount * sizeof(CPauseMenuItem));
+	memcpy_s(newItemArray, newSize, pMenu->items, pMenu->itemCount * sizeof(UIMenuItem));
 
 	// overwrite the reset button since we will move it to the bottom later..
 	auto itemIdx = pMenu->itemCount - 1;
@@ -650,7 +655,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(getPresetValueBool(eCamFirstPersonShooterCameraMetadata, "alwaysUseReticle", false)); }, 0)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FP Max Pitch Limit
 
@@ -669,7 +674,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "minPitch", -60.0f), 40.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FP Min Pitch Limit
 
@@ -688,7 +693,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFirstPersonShooterCameraMetadata, "maxPitch", 60.0f), 40.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP FOV
 
@@ -707,7 +712,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "fov", 50.0f), 20.0f, 80.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP Horizontal Origin
 
@@ -726,7 +731,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP Follow Distance
 
@@ -745,7 +750,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP Running Shake
 
@@ -764,7 +769,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(getPresetValueFloat(eCamFollowPedCameraMetadata, "sprintShakeSpeed", 0.5f) != FLT_MAX); }, 1)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP Max Pitch Limit
 
@@ -783,7 +788,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamFollowPedCameraMetadata, "minPitch", -70.0f), 50.0f, 90.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPP Min Pitch Limit
 
@@ -802,7 +807,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowPedCameraMetadata, "maxPitch", 45.0f), 0.0f, 90.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPA FOV
 
@@ -821,7 +826,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "fov", 45.0f), 15.0f, 75.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPA Horizontal Origin
 
@@ -840,7 +845,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "pivotOffsetX", 0.4f), -0.1f, 0.9f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPA Follow Distance
 
@@ -859,7 +864,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamThirdPersonPedAimCameraMetadata, "followDistance", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV FOV
 
@@ -878,7 +883,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV Vertical Origin
 
@@ -897,7 +902,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "viewOffsetZ", 0.0f), -0.05f, 0.05f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV Switch In Water
 
@@ -908,16 +913,16 @@ void addPauseMenuItems()
 
 		if (value)
 		{
-			g_cinematicCameraEnterWaterPatch1.remove();
+			g_enterWaterSwapPatch.remove();
 		}
 		else
-			g_cinematicCameraEnterWaterPatch1.install();
+			g_enterWaterSwapPatch.install();
 
 		g_scriptconfig.set<bool>("GlobalSettings", "SwapCameraOnWaterEnter", value != 0);
 
 	}, []() -> int { return g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true); }, 1)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV Switch On Desroyed
 
@@ -928,16 +933,16 @@ void addPauseMenuItems()
 
 		if (value)
 		{
-			g_cinematicCameraEnterWaterPatch2.remove();
+			g_vehicleDestroyedSwapPatch.remove();
 		}
 		else
-			g_cinematicCameraEnterWaterPatch2.install();
+			g_vehicleDestroyedSwapPatch.install();
 
 		g_scriptconfig.set<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", value != 0);
 
 	}, []() -> int { return g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true); }, 1)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV Min Pitch Limit
 
@@ -958,7 +963,7 @@ void addPauseMenuItems()
 		setCamPreset(p);
 	}, []() -> int { return int(Math::FromToRange(-getPresetValueFloat(eCamCinematicMountedCameraMetadata, "minPitch", -10.0f), -30.0, 50.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region FPV Max Pitch Limit
 
@@ -979,7 +984,7 @@ void addPauseMenuItems()
 		setCamPreset(p);
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamCinematicMountedCameraMetadata, "maxPitch", 15.0f), -25.0, 55.0, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPV Field Of View
 
@@ -998,7 +1003,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "fov", 50.0f), 30.0f, 70.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPV Auto Center
 
@@ -1017,7 +1022,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return getPresetValueBool(eCamFollowVehicleCameraMetadata, "enableAutoCenter", true); }, 1)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPV Follow Distance
 
@@ -1036,7 +1041,30 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "followDistance", 1.075f), -0.925f, 3.075f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
+
+	#pragma region TPV Follow Distance
+
+	setupMenuItem(&newItemArray[itemIdx++], "MO_CUSTOMXZ",
+		getConstString(languageId, MO_TP_VEHICLE_SPEED_ZOOM), 51, 2, Toggle, targetSettingIdx, 0);
+
+	g_customPrefs.insert(std::make_pair(targetSettingIdx++, CustomMenuPref([](int settingIndex, int value) {
+
+		CamMetadataPreset p;
+		p.metadataHash = eCamFollowVehicleCameraMetadata;
+		p.name = "speedZoomStartSpeed";
+		p.type = CPT_FLOAT;
+		p.value.fvalue = value != 0 ? 20.0f : FLT_MAX;
+
+		setCamPreset(p);
+
+		p.name = "speedZoomEndSpeed";
+		p.value.fvalue = value != 0 ? 35.0f : FLT_MAX;
+		setCamPreset(p);
+
+	}, []() -> int { return int(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "speedZoomStartSpeed", 20.0f) != FLT_MAX); }, 1)));
+
+	#pragma endregion
 
 	#pragma region TPV Follow Height
 
@@ -1055,7 +1083,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotScale", 1.0f), 0.0f, 2.0f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPV Horizontal Origin
 
@@ -1074,7 +1102,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(Math::FromToRange(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "pivotOffsetX", 0.0f), -0.5f, 0.5f, 0.0f, 10.0f)); }, 5)));
 
-#pragma endregion
+	#pragma endregion
 
 	#pragma region TPV High Speed Shake
 
@@ -1093,7 +1121,7 @@ void addPauseMenuItems()
 
 	}, []() -> int { return int(getPresetValueFloat(eCamFollowVehicleCameraMetadata, "highSpeedShakeSpeed", 40.0f) != FLT_MAX); }, 1)));
 
-#pragma endregion
+	#pragma endregion
 
 	// move reset button to the bottom
 	newItemArray[itemIdx] = pMenu->items[pMenu->itemCount - 1];
@@ -1113,7 +1141,7 @@ void addPauseMenuItems()
 	LOG("addPauseMenuItems(): Finished adding menu items!");
 }
 
-bool SetMenuSlot_Stub(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bSlotUpdate)
+bool UIMenu__AddItem_Hook(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char * text, bool bPopScaleform, bool bSlotUpdate)
 {
 	if (settingIndex >= kSettingsStartIndex)
 	{
@@ -1125,7 +1153,7 @@ bool SetMenuSlot_Stub(int columnId, int slotIndex, int menuState, int settingInd
 		}
 	}
 
-	return g_createToggleItem->fn(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
+	return g_addToggleFn->fn(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
 }
 
 void SetPauseMenuPreference_Stub(long long settingIndex, int value, unsigned int unk)
@@ -1166,7 +1194,7 @@ std::string getResourceConfigData(HMODULE hModule)
 {
 	std::string result;
 
-	HRSRC hRes = FindResource(hModule, MAKEINTRESOURCE(IDR_TEXT1), RT_RCDATA);
+	HRSRC hRes = FindResource(hModule, MAKEINTRESOURCE(IDR_CFGFILEDATA), RT_RCDATA);
 
 	if (hRes != NULL)
 	{
@@ -1185,17 +1213,21 @@ std::string getResourceConfigData(HMODULE hModule)
 
 void makeConfigFile()
 {
-	if (!Utility::FileExists(g_scriptconfig.filename))
+	auto configPath = Utility::GetWorkingDirectory() + "ExtendedCameraSettings.ini";
+
+	if (!Utility::FileExists(configPath))
 	{
 		LOG("makeConfigFile(): Creating new config...");
 
 		printToScreen("Creating config file...");
 
-		std::string resText = getResourceConfigData(g_currentModule);
+		auto hModule = Utility::GetActiveModule();
+
+		std::string resText = getResourceConfigData(hModule);
 
 		if (!resText.empty())
 		{
-			std::ofstream ofs(g_scriptconfig.filename);
+			std::ofstream ofs(configPath);
 
 			if (ofs.good())
 			{
@@ -1205,6 +1237,8 @@ void makeConfigFile()
 			}
 		}
 	}
+
+	g_scriptconfig = CConfig(configPath.c_str(), true);
 }
 
 double getRemoteVersionNumber()
@@ -1367,7 +1401,7 @@ void checkCameraFrame()
 
 		if (!camObjMetadata)
 		{
-			LOG("checkCameraFrame(): No metadata for hash 0x%lX.", camObjMetadata);
+			LOG("checkCameraFrame(): No metadata for hash 0x%lX.", cameraHash);
 			continue;
 		}
 
@@ -1414,13 +1448,16 @@ void scriptKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtend
 	if (key == vkSaveLayout && GetAsyncKeyState(VK_CONTROL) & 0x8000)
 	{
 		saveCamPresets();
+
 		bShouldPlaySound = true;
 	}
 
 	else if (key == vkReloadPresets)
 	{
 		printToScreen("Reloading camera settings");
+
 		readPresetsFromFile("CameraPresets.xml");
+
 		bShouldUpdatePresets = true;
 	}	
 }
@@ -1442,6 +1479,8 @@ void updateFrontendSound()
 
 void doPostLoad()
 {
+	LOG("Do post load...")
+
 	if (!g_scriptconfig.get<bool>("GlobalSettings", "GamepadFollowCamAutoCenter", true))
 	{
 		g_autoRotatePatch.install();
@@ -1449,12 +1488,12 @@ void doPostLoad()
 
 	if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true))
 	{
-		g_cinematicCameraEnterWaterPatch1.install();
+		g_enterWaterSwapPatch.install();
 	}
 
 	if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnVehicleDestroyed", true))
 	{
-		g_cinematicCameraEnterWaterPatch2.install();
+		g_vehicleDestroyedSwapPatch.install();
 	}
 
 	validateAppVersion();
@@ -1472,7 +1511,7 @@ void mainLoop()
 
 		updateFrontendSound();
 
-		if (bPostLoadFinished || *g_gameState != Playing) continue;
+		if (bPostLoadFinished || *g_game.GetGameState() != Playing) continue;
 
 		doPostLoad();
 
@@ -1484,210 +1523,150 @@ void setupHooks()
 {
 	auto gameVersion = getGameVersion();
 
+	LOG("main(): Game version %d", gameVersion);
+
 	// invalid game version
 	if (gameVersion == VER_UNK) return;
 
-	addOffsetsForGameVersion(gameVersion);
-
-	// get pointer to game state..
-	auto result = Pattern((BYTE*)"\x0F\x29\x74\x24\x00\x85\xDB", "xxxx?xx").get();
-
-	if (result)
+	if (g_game.Initialize())
 	{
-		LOG("main(): g_gameState found at 0x%llX", result);
+		addOffsetsForGameVersion(gameVersion);
+
+		// jmp patch #1 for stop camera swap on vehicle enter water
+		auto result = BytePattern((BYTE*)"\x31\x81\x00\x00\x00\x00\xF3\x0F\x10\x44\x24\x00", "xx????xxxxx?").get(76);
+
+		if (result)
+		{
+			LOG("main(): g_enterWaterPatch1 found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find g_enterWaterPatch1");
+			return;
+		}
+
+		g_enterWaterSwapPatch = bytepatch_t((BYTE*)result, (gameVersion < VER_1_0_877_1_STEAM && gameVersion > VER_1_0_505_2_NOSTEAM) ?
+			std::vector<BYTE>(6, NOP) : gameVersion < VER_1_0_944_2_STEAM ? std::vector<BYTE> { JMPREL_8 } : std::vector<BYTE>(6, NOP)); // jz = jmp		
+																																	  // jmp patch #2 for stop camera swap on vehicle enter water
+		result = BytePattern((BYTE*)"\x44\x8A\xC5\x48\x8B\x0C\xC8", "xxxxxxx").get(48);
+
+		if (result)
+		{
+			LOG("main(): g_enterWaterPatch2 found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find g_enterWaterPatch2");
+			return;
+		}
+
+		g_vehicleDestroyedSwapPatch = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP)); // jz = nop
+
+		result = BytePattern((BYTE*)"\xF3\x0F\x10\x07\x0F\x28\xCF", "xxxxxxx").get(-23);
+
+		if (result)
+		{
+			LOG("main(): g_autoRotatePatch found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find g_autoRotatePatch");
+			return;
+		}
+
+		g_autoRotatePatch = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP));
+
+
+		result = BytePattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx").get(-0x5);
+
+		if (result)
+		{
+			LOG("main(): getGxtEntry() found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find getGxtEntry()");
+			return;
+		}
+
+		g_getGxtEntry = HookManager::SetCall(result, getGxtEntry_Stub);
+
+		BytePattern pattern = BytePattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
+
+		result = pattern.get(-0x1A);
+
+		if (result)
+		{
+			LOG("main(): SetMenuSlot() #1 found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find setMenuSlot() #1");
+			return;
+		}
+
+		g_addSliderFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); //-0x1A
+
+		result = pattern.get(0xA8);
+
+		if (result)
+		{
+			LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find SetMenuSlot() #2");
+			return;
+		}
+
+		g_addToggleFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); // +0xA8
+
+		pattern = BytePattern((BYTE*)"\x81\xE9\x00\x00\x00\x00\x74\x25\xFF\xC9", "xx????xxxx");
+
+		result = pattern.get(-0x2A);
+
+		if (result)
+		{
+			LOG("main(): ResetCameraProfileSettings() found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find ResetCameraProfileSettings()");
+			return;
+		}
+
+		g_resetCameraSettings = HookManager::SetCall(result, ResetCameraProfileSettings_Stub);
+
+		pattern = BytePattern((BYTE*)"\xF2\x0F\x2C\x56\x00", "xxxx?");
+
+		result = pattern.get(0x20);
+
+		if (result)
+		{
+			LOG("main(): setPauseMenuPreference() found at 0x%llX", result);
+		}
+
+		else
+		{
+			LOG("[ERROR] main(): Failed to find SetPauseMenuPreference()");
+			return;
+		}
+
+		g_setPauseMenuPreference = HookManager::SetCall(result, SetPauseMenuPreference_Stub);
+
+		result = pattern.get(0x12);
+
+		// always toggle preferences
+		memset((void*)result, 0x90, 6);
 	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_gameState");
-		return;
-	}
-
-	g_gameState = reinterpret_cast<eGameState*>(*reinterpret_cast<int *>(result - 4) + result);
-
-	// jmp patch #1 for stop camera swap on vehicle enter water
-	result = Pattern((BYTE*)"\x31\x81\x00\x00\x00\x00\xF3\x0F\x10\x44\x24\x00", "xx????xxxxx?").get(76);
-
-	if (result)
-	{
-		LOG("main(): g_enterWaterPatch1 found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_enterWaterPatch1");
-		return;
-	}
-
-	g_cinematicCameraEnterWaterPatch1 = bytepatch_t((BYTE*)result, (gameVersion < v1_0_877_1_STEAM && gameVersion > v1_0_505_2_NOSTEAM) ?
-		std::vector<BYTE>(6, NOP) : gameVersion < v1_0_944_2_STEAM ? std::vector<BYTE> { JMPREL_8 } : std::vector<BYTE>(6, NOP)); // jz = jmp		
-																																  // jmp patch #2 for stop camera swap on vehicle enter water
-	result = Pattern((BYTE*)"\x44\x8A\xC5\x48\x8B\x0C\xC8", "xxxxxxx").get(48);
-
-	if (result)
-	{
-		LOG("main(): g_enterWaterPatch2 found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_enterWaterPatch2");
-		return;
-	}
-
-	g_cinematicCameraEnterWaterPatch2 = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP)); // jz = nop
-
-	result = Pattern((BYTE*)"\xF3\x0F\x10\x07\x0F\x28\xCF", "xxxxxxx").get(-23);
-
-	if (result)
-	{
-		LOG("main(): g_autoRotatePatch found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_autoRotatePatch");
-		return;
-	}
-
-	g_autoRotatePatch = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP));
-
-	result = Pattern((BYTE*)"\x88\x50\x41\x48\x8B\x47\x40", "xxxxxxx").get(-0x28);
-
-	if (result)
-	{
-		LOG("main(): g_metadataCollection found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_metadataCollection");
-		return;
-	}
-
-	result = *reinterpret_cast<int *>(result - 4) + result + 6;
-
-	g_metadataCollection = reinterpret_cast<rage::pgCollection<camMetadataRef*>*>((*reinterpret_cast<int *>(result + 3) + result - 1));
-
-	result = Pattern((BYTE*)"\x0F\xB7\x54\x51\x00", "xxxx?").get();
-
-	if (result)
-	{
-		LOG("main(): g_activeMenuArray found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find g_activeMenuArray");
-		return;
-	}
-
-	g_activeMenuArray = *reinterpret_cast<rage::pgCollection<CPauseMenuInstance>*>(*reinterpret_cast<int *>(result - 4) + result);
-
-	result = Pattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx").get(-0x5);
-
-	if (result)
-	{
-		LOG("main(): getGxtEntry() found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find getGxtEntry()");
-		return;
-	}
-
-	g_getGxtEntry = HookManager::SetCall<GetGlobalTextEntry_t>(result, getGxtEntry_Stub);
-
-	Pattern pattern = Pattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
-
-	result = pattern.get(-0x1A);
-
-	if (result)
-	{
-		LOG("main(): SetMenuSlot() #1 found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find setMenuSlot() #1");
-		return;
-	}
-
-	g_createSliderItem = HookManager::SetCall<SetMenuSlot_t>(result, SetMenuSlot_Stub); //-0x1A
-
-	result = pattern.get(0xA8);
-
-	if (result)
-	{
-		LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find SetMenuSlot() #2");
-		return;
-	}
-
-	g_createToggleItem = HookManager::SetCall<SetMenuSlot_t>(result, SetMenuSlot_Stub); // +0xA8
-
-	pattern = Pattern((BYTE*)"\x81\xE9\x00\x00\x00\x00\x74\x25\xFF\xC9", "xx????xxxx");
-
-	result = pattern.get(-0x2A);
-
-	if (result)
-	{
-		LOG("main(): ResetCameraProfileSettings() found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find ResetCameraProfileSettings()");
-		return;
-	}
-
-	g_resetCameraSettings = HookManager::SetCall<ResetCameraProfileSettings_t>(result, ResetCameraProfileSettings_Stub);
-
-	pattern = Pattern((BYTE*)"\xF2\x0F\x2C\x56\x00", "xxxx?");
-
-	result = pattern.get(0x20);
-
-	if (result)
-	{
-		LOG("main(): setPauseMenuPreference() found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find SetPauseMenuPreference()");
-		return;
-	}
-
-	g_setPauseMenuPreference = HookManager::SetCall<SetPauseMenuPreference_t>(result, SetPauseMenuPreference_Stub);
-
-	result = pattern.get(0x12);
-
-	// always toggle preferences
-	memset((void*)result, 0x90, 6);
-
-	pattern = Pattern((BYTE*)"\x39\x18\x74\x0A\x48\xFF\xC6", "xxxxxxx");
-
-	result = pattern.get(-0x48);
-
-	if (result)
-	{
-		LOG("main(): getCamDirectorPoolObject() found at 0x%llX", result);
-	}
-
-	else
-	{
-		LOG("[ERROR] main(): Failed to find getCamDirectorPoolObject()");
-		return;
-	}
-
-	getCamDirectorFromPool = reinterpret_cast<GetCamDirectorFromPool_t>(result);
 }
-
 
 void loadConfigData()
 {
@@ -1734,32 +1713,31 @@ void scriptMain()
 		bDidLoad = true;
 	}
 
+	LOG("Lookup cam director by key...");
+
 	unsigned int camGameplayDirectorHash = 0x3E9ED27Fu;
 	// always need to grab this since it will be different after every game reload.
-	g_camGameplayDirector = getCamDirectorFromPool(&camGameplayDirectorHash);
+	g_camGameplayDirector = GetCamDirectorFromPool(&camGameplayDirectorHash);
+
+	LOG("Begin loop..");
 
 	// begin infinite loop...
 	mainLoop();
-}
-
-void mainInit(HMODULE hModule)
-{
-	g_currentModule = hModule;
 }
 
 void removePauseMenuItems()
 {
 	int const cameraSettingsLutIdx = 136;
 
-	CPauseMenuInstance * pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
+	UIMenu * pMenu = lookupMenuForIndex(cameraSettingsLutIdx);
 
-	CPauseMenuItem * pOriginalItems = pMenu->items;
+	UIMenuItem * pOriginalItems = pMenu->items;
 
 	auto newCount = pMenu->itemCount - kMenuItemsCount;
 
-	auto newSize = newCount * sizeof(CPauseMenuItem);
+	auto newSize = newCount * sizeof(UIMenuItem);
 
-	CPauseMenuItem * newItemArray = new CPauseMenuItem[newCount];
+	UIMenuItem * newItemArray = new UIMenuItem[newCount];
 
 	memcpy_s(newItemArray, newSize, pMenu->items, newSize);
 
@@ -1779,14 +1757,14 @@ void removePauseMenuItems()
 
 void removePatches()
 {
-	if (g_cinematicCameraEnterWaterPatch1.active)
+	if (g_enterWaterSwapPatch.active)
 	{
-		g_cinematicCameraEnterWaterPatch1.remove();
+		g_enterWaterSwapPatch.remove();
 	}
 
-	if (g_cinematicCameraEnterWaterPatch2.active)
+	if (g_vehicleDestroyedSwapPatch.active)
 	{
-		g_cinematicCameraEnterWaterPatch2.remove();
+		g_vehicleDestroyedSwapPatch.remove();
 	}
 
 	if (g_autoRotatePatch.active)
@@ -1809,16 +1787,16 @@ void removeHooks()
 		g_setPauseMenuPreference = NULL;
 	}
 
-	if (g_createSliderItem)
+	if (g_addSliderFn)
 	{
-		delete g_createSliderItem;
-		g_createSliderItem = NULL;
+		delete g_addSliderFn;
+		g_addSliderFn = NULL;
 	}
 
-	if (g_createToggleItem)
+	if (g_addToggleFn)
 	{
-		delete g_createToggleItem;
-		g_createToggleItem = NULL;
+		delete g_addToggleFn;
+		g_addToggleFn = NULL;
 	}
 
 	if (g_resetCameraSettings)
@@ -1841,8 +1819,4 @@ void unload()
 	LOG("Remove hooks...");
 
 	removeHooks();
-
-	g_textEntries.clear();
-
-	g_customPrefs.clear();
 }

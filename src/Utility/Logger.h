@@ -5,14 +5,13 @@
 class Logger sealed
 {
 public:
+	explicit Logger(std::string filename) : path(filename) {}
 	Logger();
-	Logger(std::string filename);
-	~Logger();
 	void Write(const char * format, ...) const;
 	void Remove() const;
+	~Logger();
 private:
-	void Initialize(std::string name);
-	std::string logName;
+	const std::string path;
 };
 
 static Logger g_logfile;

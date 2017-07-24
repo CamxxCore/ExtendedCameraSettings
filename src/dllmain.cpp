@@ -9,7 +9,6 @@ BOOL APIENTRY DllMain(HMODULE hModule,
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
-		mainInit(hModule);
 		scriptRegister(hModule, scriptMain);
 		keyboardHandlerRegister(scriptKeyboardMessage);
 		break;

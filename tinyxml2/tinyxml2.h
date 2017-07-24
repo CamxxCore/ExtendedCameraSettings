@@ -427,7 +427,7 @@ private:
 
 
 /**
-	Implements the interface to the "Visitor pattern" (see the Accept() method.)
+	Implements the interface to the "Visitor BytePattern" (see the Accept() method.)
 	If you call the Accept() method, it requires being passed a XMLVisitor
 	class to handle callbacks. For nodes that contain other nodes (Document, Element)
 	you will get called with a VisitEnter/VisitExit pair. Nodes that are always leafs
@@ -843,7 +843,7 @@ public:
     	The interface has been based on ideas from:
 
     	- http://www.saxproject.org/
-    	- http://c2.com/cgi/wiki?HierarchicalVisitorPattern
+    	- http://c2.com/cgi/wiki?HierarchicalVisitorBytePattern
 
     	Which are both good references for "visiting".
 

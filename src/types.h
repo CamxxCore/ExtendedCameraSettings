@@ -4,6 +4,16 @@
 
 typedef __m128 CVector;
 
+#pragma pack(push, 1)
+struct CMatrix
+{
+	CVector right;
+	CVector forward;
+	CVector up;
+	CVector pos;
+};
+#pragma pack(pop)
+
 namespace rage
 {
 	template<typename T>
@@ -14,7 +24,6 @@ namespace rage
 		UINT16		m_count;
 		UINT16		m_size;
 
-	public:
 		T first()
 		{
 			return m_data[0];
@@ -53,11 +62,11 @@ enum eDynamicMenuAction
 	LowHi = 16
 };
 
-struct CPauseMenuItem
+struct UIMenuItem
 {
-	CPauseMenuItem()
+	UIMenuItem()
 	{
-		memset(this, 0x0, sizeof(CPauseMenuItem));
+		memset(this, 0x0, sizeof(UIMenuItem));
 	}
 
 	int menuIndex; // 0x0-0x4
@@ -73,10 +82,10 @@ struct CPauseMenuItem
 	char pad1[0x4];
 }; //sizeof=0x20
 
-struct CPauseMenuInstance
+struct UIMenu
 {
 	void * cmenuInstance; //0x0-0x8
-	CPauseMenuItem * items; //0x8-0x10
+	UIMenuItem * items; //0x8-0x10
 	short itemCount; //0x10-0x12
 	short maxItems; //0x12-0x14
 	char pad0[0x4]; //0x14-0x18
@@ -96,7 +105,6 @@ class camBaseObjectMetadata
 public:
 	virtual ~camBaseObjectMetadata() = 0;
 	virtual uintptr_t getPsoStruct() = 0;
-public:
 	unsigned int hashKey;
 };
 
@@ -315,4 +323,10 @@ struct camFirstPersonShooterCamera
 	float ladderYaw; //0x5D8-0x5DC
 	char pad8[0x1B1];
 	char unkMovementFlags; // related to camera control in and out of cover
-};	
+};
+
+struct camThirdPersonFollowCamera
+{
+	char pad0[0x390];
+	CVector cameraSpeedOffset; //0x390-0x3A0 -offset used to adjust the camera distance behind the entity relative to its speed.
+};

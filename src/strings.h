@@ -26,6 +26,7 @@ static LPCTSTR en_us[]{
 	"Third Person Vehicle Max Pitch Angle",
 	"Third Person Vehicle Auto Center",
 	"Third Person Vehicle Follow Distance",
+	"Third Person Vehicle Speed Zoom",
 	"Third Person Vehicle Pivot Scale",
 	"Third Person Vehicle Horizontal Origin",
 	"Third Person Vehicle High Speed Shake"
@@ -57,9 +58,43 @@ static LPCTSTR en_us[]{
 	 u8"Ángulo de Inclinación Máximo en Vehículo en Tercera Persona",
 	 u8"Auto - centrado en Vehículo en Tercera Persona",
 	 u8"Distancia de seguimiento de Vehículo en Tercera Persona",
+	 u8"Velocidad del vehículo de la tercera persona zoom relativo",
 	 u8"Escala del Pivote del Vehículo en Tercera Persona",
 	 u8"Origen Horizontal en Vehículo en Tercera Persona",
 	 u8"Agitación de Alta Velocidad en Vehículo en Tercera Persona"
+ };
+
+ enum GlobalTextEntry_t
+ {
+	 MO_FP_FOV,
+	 MO_FP_USE_RETICLE,
+	 MO_FP_MIN_PITCH,
+	 MO_FP_MAX_PITCH,
+	 MO_TP_FOV,
+	 MO_TP_HORZ_OFF,
+	 MO_TP_VERT_OFF,
+	 MO_TP_FOLLOW_DIST,
+	 MO_TP_SHAKE,
+	 MO_TP_MIN_PITCH,
+	 MO_TP_MAX_PITCH,
+	 MO_TP_AIMING_FOV,
+	 MO_TP_AIMING_HORZ_OFF,
+	 MO_TP_AIMING_FOLLOW_DIST,
+	 MO_FP_VEHICLE_FOV,
+	 MO_FP_VEHICLE_VERT_OFF,
+	 MO_FP_VEHICLE_SWITCH_WATER,
+	 MO_FP_VEHICLE_SWITCH_DAMAGE,
+	 MO_FP_VEHICLE_MIN_PITCH,
+	 MO_FP_VEHICLE_MAX_PITCH,
+	 MO_TP_VEHICLE_FOV,
+	 MO_TP_VEHICLE_MIN_PITCH,
+	 MO_TP_VEHICLE_MAX_PITCH,
+	 MO_TP_VEHICLE_AUTO_CENTER,
+	 MO_TP_VEHICLE_FOLLOW_DIST,
+	 MO_TP_VEHICLE_SPEED_ZOOM,
+	 MO_TP_VEHICLE_PIVOT_SCALE,
+	 MO_TP_VEHICLE_HORZ_OFF,
+	 MO_TP_VEHICLE_SHAKE
  };
 
  static LPCTSTR* langtext_array[2]{ 

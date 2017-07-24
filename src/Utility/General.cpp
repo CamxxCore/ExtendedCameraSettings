@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+static HMODULE ourModule;
+
 HMODULE Utility::GetActiveModule()
 {
 	HMODULE hModule = NULL;
@@ -15,7 +17,10 @@ std::string Utility::GetModuleName(HMODULE hModule)
 {
 	TCHAR inBuf[MAX_PATH];
 
-	GetModuleFileNameA(hModule, inBuf, sizeof(inBuf));
+	if (!hModule)
+		hModule = GetActiveModule();
+
+	GetModuleFileName(hModule, inBuf, MAX_PATH);
 
 	auto str = std::string(inBuf);
 
@@ -29,32 +34,38 @@ std::string Utility::GetModuleName(HMODULE hModule)
 
 std::string Utility::GetWorkingDirectory()
 {
+	HMODULE hModule = GetActiveModule();
+
 	TCHAR inBuf[MAX_PATH];
 
-	GetCurrentDirectory(MAX_PATH, inBuf);
+	GetModuleFileName(hModule, inBuf, MAX_PATH);
 
-	return std::string(inBuf);
+	auto str = std::string(inBuf);
+
+	auto seperator = str.find_last_of("\\");
+
+	if (seperator != std::string::npos)
+		seperator += 1;
+
+	return str.substr(0, seperator);
+
 }
 
 std::string Utility::GetShortTimeString()
 {
-	time_t dtNow = time(NULL);
+	time_t t = time(NULL);
 
-	tm t;
+	struct tm timeinfo;
 
-	localtime_s(&t, &dtNow);
+	localtime_s(&timeinfo, &t);
 
-	char inBuf[200];
-
-	sprintf_s(inBuf, "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
-
-	return std::string(inBuf);
+	return FormatString("%02d:%02d:%02d", 
+		timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 }
 
 bool Utility::FileExists(std::string fileName)
 {
 	std::ifstream infile(fileName);
-
 	return infile.good();
 }
 
@@ -83,5 +94,31 @@ void Utility::SplitString(std::string str, std::string splitBy, std::vector<std:
 
 void Utility::ToLower(std::string& str)
 {
-	std::transform(str.begin(), str.end(), str.begin(), std::tolower);
+	transform(str.begin(), str.end(), str.begin(), std::tolower);
+}
+
+unsigned Utility::GetHashKey(std::string str)
+{
+	unsigned int hash = 0;
+	for (int i = 0; i < str.size(); ++i)
+	{
+		hash += str[i];
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
+	return hash;
+}
+
+unsigned int Utility::StringToHash(std::string str)
+{
+	char * p;
+
+	unsigned long numericHash = strtoul(str.c_str(), &p, 10);
+
+	return *p != '\0' ? GetHashKey(str) : 
+
+	static_cast<unsigned int>(numericHash);
 }
