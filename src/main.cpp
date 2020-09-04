@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#pragma warning(disable : 4244 4305) 
+#pragma warning(disable : 4244 4305)
 
 #define DLL_EXPORT extern "C" __declspec( dllexport )
 
@@ -44,19 +44,19 @@ camBaseDirector * g_camGameplayDirector = nullptr;
 DWORD vkReloadPresets = VK_B, vkSaveLayout = VK_F11;
 
 std::map<int, std::string> g_dataFileTypeMap = {
-	{ CPT_BOOLEAN, "bool" },
-	{ CPT_INTEGER, "int" },
-	{ CPT_UINTEGER, "uint" },
-	{ CPT_FLOAT, "float" },
-	{ CPT_DOUBLE, "double" }
+    { CPT_BOOLEAN, "bool" },
+    { CPT_INTEGER, "int" },
+    { CPT_UINTEGER, "uint" },
+    { CPT_FLOAT, "float" },
+    { CPT_DOUBLE, "double" }
 };
 
 std::map<eMetadataHash, std::string> g_metadataHashMap = {
-	{ eCamFirstPersonShooterCameraMetadata, "firstPersonPedCam" },
-	{ eCamFollowVehicleCameraMetadata, "thirdPersonVehicleCam" },
-	{ eCamFollowPedCameraMetadata, "thirdPersonPedCam" },
-	{ eCamCinematicMountedCameraMetadata, "firstPersonVehicleCam" },
-	{ eCamThirdPersonPedAimCameraMetadata, "thirdPersonAimCam" },
+    { eCamFirstPersonShooterCameraMetadata, "firstPersonPedCam" },
+    { eCamFollowVehicleCameraMetadata, "thirdPersonVehicleCam" },
+    { eCamFollowPedCameraMetadata, "thirdPersonPedCam" },
+    { eCamCinematicMountedCameraMetadata, "firstPersonVehicleCam" },
+    { eCamThirdPersonPedAimCameraMetadata, "thirdPersonAimCam" },
 };
 
 void printToScreen(const char * format, ...) {
@@ -507,8 +507,6 @@ bool getCamPreset(eMetadataHash eType, std::string& name, CamMetadataPreset * pr
 
 void setCamPresetForKey(unsigned int hashKey, CamMetadataPreset& preset, bool writeToFile) {
 
-    LOG("setCamPresetForKey: presetName: %s", preset.name.c_str());
-
     auto items = &g_camPresets[hashKey];
 
     auto it = std::find_if(items->begin(), items->end(),
@@ -533,10 +531,6 @@ void setCamPreset(CamMetadataPreset preset) {
 
     if (checkCamPresetKey(preset.metadataHash, &keyValue))
         bShouldUpdatePresets = true;
-
-	LOG("bShouldUpdatePresets = %d", (int)(bShouldUpdatePresets));
-
-    LOG("setCamPreset: presetName: %s", preset.name.c_str());
 
     setCamPresetForKey(keyValue, preset, bAutoSaveLayouts);
 }
@@ -1802,4 +1796,3 @@ void scriptUnload() {
 
     removeHooks();
 }
-
