@@ -32,7 +32,7 @@ static LPCTSTR en_us[]{
 	"Third Person Vehicle High Speed Shake"
 };
 
- static LPCTSTR en_es[] {
+ static LPCTSTR es_es[] {
 	 u8"Campo de visión en Primera Persona",
 	 u8"Usar siempre el retículo en Primera Persona",
 	 u8"Ángulo de Inclinación Mínimo en Primera Persona",
@@ -131,7 +131,7 @@ static LPCTSTR ru_ru[] {
 
  static LPCTSTR* langtext_array[2]{ 
 	 en_us, 
-	 en_es,
+	 es_es,
 	 ru_ru
  };
 
