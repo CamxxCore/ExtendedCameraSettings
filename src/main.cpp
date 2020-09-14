@@ -557,6 +557,8 @@ int getLanguageTextId() {
         return 0;
     case 4:
         return 1;
+    case 7:
+        return 2;	    
     default:
         return 0;
     }
