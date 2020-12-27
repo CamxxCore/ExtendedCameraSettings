@@ -4,8 +4,8 @@ class AddressMgr;
 
 extern AddressMgr g_addresses;
 
-#define __MAJOR_REV__ 1.1
-#define __MINOR_REV__ .02
+#define __MAJOR_REV__ 1.2
+#define __MINOR_REV__ .04
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -15,7 +15,7 @@ extern AddressMgr g_addresses;
 #define WriteDouble(a,b)(*(double*)a = b)
 #define WriteBool(a,b)(*(bool*)a = b)
 
-#define MAX_STRING 256
+//#define RLB_DEBUG
 
 #include <windows.h>
 
@@ -23,13 +23,13 @@ extern AddressMgr g_addresses;
 #include <vector>
 #include <mutex>
 #include <fstream>
-#include <algorithm>
 #include <string>
 
 #include "resource.h"
 
 #include "../inc/enums.h"
 #include "../inc/natives.h"
+#include "../inc/main.h"
 
 #include "../tinyxml2/tinyxml2.h"
 
@@ -41,7 +41,6 @@ extern AddressMgr g_addresses;
 #include "Utility/keymap.h"
 #include "Utility/config.h"
 #include "Utility/patch.h"
-
 #include "Utility/Pattern.h"
 #include "Utility/Hooking.h"
 
@@ -53,8 +52,10 @@ extern AddressMgr g_addresses;
 
 #include "Game.h"
 
-void scriptMain();
+using namespace Utility;
 
-void scriptKeyboardMessage(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow);
+void scriptLoad();
 
-void unload();
+void scriptKeyboardEvent(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended, BOOL isWithAlt, BOOL wasDownBefore, BOOL isUpNow);
+
+void scriptUnload();

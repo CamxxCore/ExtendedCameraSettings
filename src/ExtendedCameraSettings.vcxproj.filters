@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="tinyxml2">
-      <UniqueIdentifier>{e7b6a36b-0a7e-4e62-aa32-8b70f32f16f4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src">
       <UniqueIdentifier>{e4885a9f-cd62-450e-bade-501da8c4f6fa}</UniqueIdentifier>
     </Filter>
@@ -43,7 +40,7 @@
       <Filter>src\Utility</Filter>
     </ClCompile>
     <ClCompile Include="..\tinyxml2\tinyxml2.cpp">
-      <Filter>tinyxml2</Filter>
+      <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -77,9 +74,6 @@
     <ClInclude Include="Utility\patch.h">
       <Filter>src\Utility</Filter>
     </ClInclude>
-    <ClInclude Include="Utility\MemAddr.h">
-      <Filter>src\Utility</Filter>
-    </ClInclude>
     <ClInclude Include="Utility\Math.h">
       <Filter>src\Utility</Filter>
     </ClInclude>
@@ -101,10 +95,16 @@
     <ClInclude Include="Utility\AddressMgr.h">
       <Filter>src\Utility</Filter>
     </ClInclude>
-    <ClInclude Include="..\tinyxml2\tinyxml2.h">
-      <Filter>tinyxml2</Filter>
-    </ClInclude>
     <ClInclude Include="resource.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\MemAddr.h">
+      <Filter>src\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="callbacks.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tinyxml2\tinyxml2.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
