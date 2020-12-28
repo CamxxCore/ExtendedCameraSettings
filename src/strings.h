@@ -7,7 +7,7 @@ static LPCTSTR en_us[] {
     "First Person Max Pitch Angle",
     "First Person Aiming Field of View",
     "Third Person Field of View",
-	"Third Person Auto Center",
+    "Third Person Auto Center",
     "Third Person Horizontal Origin",
     "Third Person Vertical Origin",
     "Third Person Follow Distance",
@@ -41,7 +41,7 @@ static LPCTSTR en_es[] {
     u8"Ángulo de Inclinación Máximo en Primera Persona",
     u8"Campo de Visión Apuntando en Primera Persona",
     u8"Campo de Visión en Tercera Persona",
-	u8"Centro de auto de Tercera Persona",
+    u8"Centro de auto de Tercera Persona",
     u8"Origen Horizontal en Tercera Persona",
     u8"Origen Vertical en Tercera Persona",
     u8"Distancia de Seguimiento en Tercera Persona",
@@ -107,7 +107,7 @@ static LPCTSTR zh_cn[] {
     u8"第一人称最大俯仰角",
     u8"第一人称瞄准视野",
     u8"第三人称视野",
-	u8"第三人称自动居中",
+    u8"第三人称自动居中",
     u8"第三人称横向源点",
     u8"第三人称垂直源点",
     u8"第三人称跟随距离",
@@ -141,7 +141,7 @@ enum GlobalTextEntry_t {
     MO_FP_MAX_PITCH,
     MO_FP_AIMING_FOV,
     MO_TP_FOV,
-	MO_TP_AUTO_CENTER,
+    MO_TP_AUTO_CENTER,
     MO_TP_HORZ_OFF,
     MO_TP_VERT_OFF,
     MO_TP_FOLLOW_DIST,
@@ -171,7 +171,7 @@ enum GlobalTextEntry_t {
 static LPCTSTR* langtext_array[4] {
     en_us,
     en_es,
-    ru_ru
+    ru_ru,
     zh_cn
 };
 
