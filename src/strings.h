@@ -100,6 +100,40 @@ static LPCTSTR ru_ru[]{
     u8"Дрожание камеры в машине на высоких скоростях (третье лицо)"
 };
 
+static LPCTSTR zh_cn[] {
+    u8"第一人称视野",
+    u8"第一人称无瞄准准星",
+    u8"第一人称最小俯仰角",
+    u8"第一人称最大俯仰角",
+    u8"第一人称瞄准视野",
+    u8"第三人称视野",
+	u8"第三人称自动居中",
+    u8"第三人称横向源点",
+    u8"第三人称垂直源点",
+    u8"第三人称跟随距离",
+    u8"第三人称奔跑震动",
+    u8"第三人称最小俯仰角",
+    u8"第三人称最大俯仰角",
+    u8"第三人称瞄准视野",
+    u8"第三人称瞄准横向原点",
+    u8"第三人称瞄准跟随距离",
+    u8"第一人称驾驶视野",
+    u8"第一人称驾驶垂直原点",
+    u8"在水中时切换第一人称驾驶视角",
+    u8"死亡时切换第一人称驾驶视角",
+    u8"第一人称驾驶最小俯仰角",
+    u8"第一人称驾驶最大俯仰角",
+    u8"第三人称驾驶视野",
+    u8"第三人称驾驶最小俯仰角",
+    u8"第三人称驾驶最大俯仰角",
+    u8"第三人称驾驶自动居中",
+    u8"第三人称驾驶跟随距离",
+    u8"第三人称驾驶车辆速度变焦",
+    u8"第三人称驾驶轴心缩放",
+    u8"第三人称驾驶横向原点",
+    u8"第三人称驾驶车辆高速抖动"
+};
+
 enum GlobalTextEntry_t {
     MO_FP_FOV,
     MO_FP_USE_RETICLE,
@@ -134,10 +168,11 @@ enum GlobalTextEntry_t {
     MO_TP_VEHICLE_SHAKE
 };
 
-static LPCTSTR* langtext_array[3] {
+static LPCTSTR* langtext_array[4] {
     en_us,
     en_es,
     ru_ru
+    zh_cn
 };
 
 inline LPCTSTR getConstString(int langugageId, GlobalTextEntry_t textId) {
