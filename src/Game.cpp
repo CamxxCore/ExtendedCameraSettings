@@ -8,7 +8,7 @@ bool Game::Initialize(int gameVersion) {
     #pragma region Game State
 
     // get pointer to game state..
-    auto result = (uintptr_t)BytePattern((BYTE*)"\x0F\x29\x74\x24\x00\x85\xDB", "xxxx?xx").get().get();
+    auto result = (uintptr_t)BytePattern((BYTE*)"\x0F\x29\x74\x24\x00\x85\xC0", "xxxx?xx").get().get();
 
     if (result) {
         LOG("Game state found at 0x%llX", result);

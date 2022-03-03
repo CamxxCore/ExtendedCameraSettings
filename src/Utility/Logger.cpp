@@ -19,7 +19,7 @@ namespace Utility {
         ofs << str;
         ofs.close();
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(RLB_DEBUG)
         OutputDebugStringA(str.c_str());
 #endif
     }

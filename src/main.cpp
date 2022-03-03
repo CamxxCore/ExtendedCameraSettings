@@ -1122,9 +1122,10 @@ void addPauseMenuItems() {
     LOG("addPauseMenuItems(): Finished adding menu items!");
 }
 
-CallHook<bool(*)(int, int, int, int, int, int, const char*, bool, bool)>* g_addSliderFn, * g_addToggleFn;
+CallHook<bool(*)(int, int, int, int, int, int, int, bool, bool)>* g_addSliderFn, * g_addToggleFn;
 
-bool UIMenu__AddItem_Hook(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, const char* text, bool bPopScaleform, bool bSlotUpdate) {
+bool UIMenu__AddItem_Hook(int columnId, int slotIndex, int menuState, int settingIndex, int unk, int value, int text, bool bPopScaleform, bool bSlotUpdate) {
+
     if (settingIndex >= kSettingsStartIndex) {
         const auto it = g_customPrefs.find(settingIndex);
 
@@ -1133,7 +1134,7 @@ bool UIMenu__AddItem_Hook(int columnId, int slotIndex, int menuState, int settin
         }
     }
 
-    return g_addToggleFn->fn(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
+    return g_addSliderFn->fn(columnId, slotIndex, menuState, settingIndex, unk, value, text, bPopScaleform, bSlotUpdate);
 }
 
 CallHook<void(*)(long long, int, unsigned int)>* g_setPauseMenuPreference;
@@ -1331,7 +1332,7 @@ void checkCameraFrame() {
 
     const auto keyValue = bUseGlobalPresets ? 0 : g_modelId;
 
-    LOG("checkCameraFrame(): Looking up preset data using key %d...", keyValue);
+    LOG("checkCameraFrame(): Looking up preset data using key 0x%lX...", keyValue);
 
     auto itPreset = g_camPresets.find(keyValue);
 
@@ -1620,7 +1621,7 @@ void setupHooks() {
 
         g_addSliderFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); //-0x1A
 
-        result = pattern.get().get(0xA8);
+        result = pattern.get().get(0xA9);
 
         if (result) {
             LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
@@ -1631,7 +1632,7 @@ void setupHooks() {
             return;
         }
 
-        g_addToggleFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); // +0xA8
+        g_addToggleFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); // +0xA9
 
         pattern = BytePattern((BYTE*)"\x81\xE9\x00\x00\x00\x00\x74\x25\xFF\xC9", "xx????xxxx");
 
@@ -1693,7 +1694,11 @@ void loadConfigData() {
 void scriptLoad() {
     if (!bDidLoad) {
 
+        LOG("presets");
+
         readPresetsFromFile("CameraPresets.xml");
+
+        LOG("cfg");
 
         makeConfigFile();
 
