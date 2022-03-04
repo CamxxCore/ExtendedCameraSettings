@@ -1621,7 +1621,7 @@ void setupHooks() {
 
         g_addSliderFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); //-0x1A
 
-        result = pattern.get().get(0xA9);
+        result = pattern.get().get(gameVersion < VER_1_0_2545_0_STEAM ? 0xA8 : 0xA9);
 
         if (result) {
             LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
@@ -1694,23 +1694,23 @@ void loadConfigData() {
 void scriptLoad() {
     if (!bDidLoad) {
 
-        LOG("presets");
+        //LOG("presets");
 
         readPresetsFromFile("CameraPresets.xml");
 
-        LOG("cfg");
+        //LOG("cfg");
 
         makeConfigFile();
 
-        LOG("load config");
+        //LOG("load config");
 
         loadConfigData();
 
-        LOG("setup hooks");
+        //LOG("setup hooks");
 
         setupHooks();
 
-        LOG("check camera frame");
+        //LOG("check camera frame");
 
         // pump camera frame for addPauseMenuItems();
         checkCameraFrame();
