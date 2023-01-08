@@ -25,7 +25,7 @@ class Game {
     }
 };
 
-inline camBaseDirector* GetCamDirectorFromPool(unsigned int * hashName) {
-    return ((camBaseDirector* (__fastcall*)(unsigned int*))
-            (*g_addresses.get("game"))["getCamDirectorFromPool"].addr)(hashName);
+inline camBaseDirector* GetCamDirectorFromPool(unsigned long long * hashNameOrDef) {
+    return ((camBaseDirector* (__fastcall*)(unsigned long long*))
+            (*g_addresses.get("game"))["getCamDirectorFromPool"].addr)(hashNameOrDef);
 }

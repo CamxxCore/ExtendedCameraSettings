@@ -93,6 +93,7 @@ class camBaseObjectMetadata {
   public:
     virtual ~camBaseObjectMetadata() = 0;
     virtual uintptr_t getPsoStruct() = 0;
+    virtual unsigned int getBaseHash() = 0;
     unsigned int hashKey;
 };
 

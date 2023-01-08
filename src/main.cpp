@@ -18,7 +18,7 @@ Game g_game;
 CConfig g_scriptconfig;
 
 const int kMenuItemsCount = 27;
-const int kSettingsStartIndex = 175;
+const int kSettingsStartIndex = 176;
 
 bool bDidLoad = false;
 bool bPostLoadFinished = false;
@@ -40,6 +40,10 @@ unsigned int g_modelId;
 Entity targetEntity;
 
 camBaseDirector* g_camGameplayDirector = nullptr;
+
+PVOID g_camGameplayDirectorDef = nullptr;
+
+unsigned long long g_camGameplayDirectorHash = 0x3E9ED27Fu;
 
 DWORD vkReloadPresets = VK_B, vkSaveLayout = VK_F11;
 
@@ -213,7 +217,7 @@ void readPresetsFromFile(const std::string& filename) {
 
             if (!element) continue;
 
-            LOG("Adding %s presets for model %s", it->second.c_str(), modelName);
+            LOG("Adding %s presets for model %s (%s)", it->second.c_str(), modelName);
 
             for (auto p = element->FirstChildElement("Preset"); p != nullptr; p = p->NextSiblingElement("Preset")) {
                 CamMetadataPreset preset;
@@ -283,8 +287,15 @@ void writePresetsToFile(const std::string& filename, unsigned int modelHash, std
     auto filePath = Utility::GetWorkingDirectory() + filename;
 
     if (!Utility::FileExists(filePath)) {
-        LOG("writePresetsToFile(): File not found (%s)", filePath.c_str());
-        return;
+
+        readPresetsFromFile(filename);
+
+        if (!Utility::FileExists(filePath))
+        {
+            LOG("writePresetsToFile(): File not found or we don't have sufficient permissions to write to it (%s)", filePath.c_str());
+
+            return;
+        }
     }
 
     tinyxml2::XMLDocument doc;
@@ -1326,6 +1337,8 @@ void checkCameraFrame() {
 
     if (!modelHash || modelHash == g_modelId && !bShouldUpdatePresets) return;
 
+    LOG("checkCameraFrame(): Camera presets marked dirty, starting update.");
+
     g_modelId = modelHash;
 
     bShouldUpdatePresets = false;
@@ -1345,7 +1358,7 @@ void checkCameraFrame() {
         itPreset = g_camPresets.find(0);
 
         if (itPreset == g_camPresets.end()) {
-            LOG("checkCameraFrame(): No global preset exists. Exiting...");
+            LOG("checkCameraFrame(): No global preset exists. Aborting update...");
             return;
         }
     }
@@ -1393,8 +1406,7 @@ void checkCameraFrame() {
             printToScreen("Loading preset for '%s'", modelFriendlyName.c_str());
         }
 
-
-        // LOG("checkCameraFrame(): Got metadata for hash: %llX", camObjMetadata);
+        LOG("checkCameraFrame(): Got metadata for hash %lX: %llX", cameraHash, camObjMetadata);
 
         const auto psoData = camObjMetadata->getPsoStruct();
 
@@ -1403,12 +1415,12 @@ void checkCameraFrame() {
             continue;
         }
 
-        const auto baseMetadataHash = *reinterpret_cast<DWORD*>(psoData + 8);
+        /*const auto baseMetadataHash = *reinterpret_cast<DWORD*>(psoData + 8);
 
         if (baseMetadataHash != it->metadataHash) {
-            LOG("checkCameraFrame(): Found metadata type didn't match ours. Ours was 0x%lX but we found 0x%lX.", it->metadataHash, baseMetadataHash);
+            LOG("checkCameraFrame(): Found metadata type didn't match ours. Ours was 0x%lX but we found 0x%lX. psoData [%p]", it->metadataHash, baseMetadataHash, psoData);
             continue;
-        }
+        }*/
 
         const auto address = reinterpret_cast<uintptr_t>(camObjMetadata) + addresses->map[it->name];
 
@@ -1452,26 +1464,6 @@ void scriptKeyboardEvent(DWORD key, WORD repeats, BYTE scanCode, BOOL isExtended
     else if (key == vkReloadPresets) {
         ReloadCameraPresets();
     }
-
-    else if (key == VK_F9)
-    {
-        //auto p = getScriptHandleBaseAddress(PLAYER::PLAYER_PED_ID());
-
-        /*CamMetadataPreset p;
-        p.metadataHash = eCamFollowVehicleCameraMetadata;
-        p.name = "followDistance";
-        p.type = CPT_FLOAT;
-        p.value.fvalue = Math::FromToRange(5.0f, 0.0f, 10.0f, -0.925f, 3.075f);
-
-
-        writePresetToFile("CameraPresets.xml", 0, p);
-        */
-        //printToScreen("wrote preset");
-
-        auto metadata = getCamMetadataForHash(0x623275C3);
-
-        LOG("%p", metadata);
-    }
 }
 
 void updateFrontendSound() {
@@ -1489,9 +1481,9 @@ void updateFrontendSound() {
 void doPostLoad() {
     LOG("Do post load...")
 
-        if (!g_scriptconfig.get<bool>("GlobalSettings", "GamepadFollowCamAutoCenter", true)) {
-            g_autoRotatePatch.install();
-        }
+   if (!g_scriptconfig.get<bool>("GlobalSettings", "GamepadFollowCamAutoCenter", true)) {
+        g_autoRotatePatch.install();
+    }
 
     if (!g_scriptconfig.get<bool>("GlobalSettings", "SwapCameraOnWaterEnter", true)) {
         g_enterWaterSwapPatch.install();
@@ -1511,7 +1503,7 @@ void doPostLoad() {
 
 void mainLoop() {
     while (true) {
-        WAIT(0);
+        WAIT(20);
 
         checkCameraFrame();
 
@@ -1525,7 +1517,7 @@ void mainLoop() {
     }
 }
 
-void setupHooks() {
+void mainInit() {
     const auto gameVersion = getGameVersion();
 
     LOG("main(): Game version %d", gameVersion);
@@ -1538,64 +1530,82 @@ void setupHooks() {
 
         addOffsetsForGameVersion(gameVersion);
 
-        // jmp patch #1 for stop camera swap on vehicle enter water
-        auto result = BytePattern((BYTE*)"\x31\x81\x00\x00\x00\x00\xF3\x0F\x10\x44\x24\x00", "xx????xxxxx?").get().get(gameVersion < VER_1_0_1290_1_STEAM ? 76 : 83);
+        auto pattern = BytePattern((BYTE*)"\x31\x81\x00\x00\x00\x00\xF3\x0F\x10\x44\x24\x00", "xx????xxxxx?");
 
-        if (result) {
-            LOG("main(): g_enterWaterPatch1 found at 0x%llX", result);
+        PBYTE result = NULL;
+
+        // jmp patch #1 for stop camera swap on vehicle enter water
+   
+        if (pattern.size()) {
+
+            result = pattern.get().get(gameVersion < VER_1_0_1290_1_STEAM ? 76 : 83);
+
+            LOG("main(): enterWaterSwapPatchAddr found at 0x%llX", result);           
         }
 
         else {
-            LOG("[ERROR] main(): Failed to find g_enterWaterPatch1");
+            LOG("[ERROR] main(): Failed to find enterWaterSwapPatchAddr");
             return;
         }
 
         g_enterWaterSwapPatch = bytepatch_t((PBYTE)result, (gameVersion < VER_1_0_877_1_STEAM&& gameVersion > VER_1_0_505_2_NOSTEAM) ?
             std::vector<BYTE>(6, NOP) : gameVersion < VER_1_0_944_2_STEAM ? std::vector<BYTE> { JMPREL_8 } : gameVersion < VER_1_0_1180_2_STEAM ? std::vector<BYTE>(6, NOP) : std::vector<BYTE>{ JMPREL_8 }); // jz = jmp
 
-// jmp patch #2 for stop camera swap on vehicle enter water
-        result = BytePattern((BYTE*)"\x44\x8A\xC5\x48\x8B\x0C\xC8", "xxxxxxx").get().get(48);
+        // jmp patch #2 for stop camera swap on vehicle enter water
+        pattern = BytePattern((BYTE*)"\x44\x8A\xC5\x48\x8B\x0C\xC8", "xxxxxxx");
 
-        if (result) {
-            LOG("main(): g_enterWaterPatch2 found at 0x%llX", result);
+        if (pattern.size()) {
+
+            result = pattern.get().get(48);
+
+            LOG("main(): vehicleDestroyedSwapPatchAddr found at 0x%llX", result);      
         }
 
         else {
-            LOG("[ERROR] main(): Failed to find g_enterWaterPatch2");
+            LOG("[ERROR] main(): Failed to find vehicleDestroyedSwapPatchAddr");
             return;
         }
 
         g_vehicleDestroyedSwapPatch = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP)); // jz = nop
 
-        result = BytePattern("F3 0F 10 07 0F 28 CF E8 ? ? ? ? 41 0F 28 C8").get().get(-23);
+        pattern = BytePattern("F3 0F 10 07 0F 28 CF E8 ? ? ? ? 41 0F 28 C8");
 
-        if (result) {
-            LOG("main(): g_autoRotatePatch found at 0x%llX", result);
+        if (pattern.size()) {
+
+            result = pattern.get().get(-23);
+
+            LOG("main(): autoRotatePatchAddr found at 0x%llX", result);        
         }
 
         else {
-            LOG("[ERROR] main(): Failed to find g_autoRotatePatch");
+            LOG("[ERROR] main(): Failed to find autoRotatePatchAddr");
             return;
         }
 
         g_autoRotatePatch = bytepatch_t((BYTE*)result, std::vector<BYTE>(6, NOP));
 
-        result = BytePattern((BYTE*)"\x0C\x04\x08\x83\x00\x00\x00\x00", "xxxx????").get().get(61);
+        pattern = BytePattern((BYTE*)"\x0C\x04\x08\x83\x00\x00\x00\x00", "xxxx????");
 
-        if (result) {
-            LOG("main(): g_aimCamFieldOfViewPatch found at 0x%llX", result);
+        if (pattern.size()) {
+
+            result = pattern.get().get(61);
+
+            LOG("main(): g_aimCamFieldOfViewPatch found at 0x%llX", result);       
         }
 
         else {
-            LOG("[ERROR] main(): Failed to find g_aimCamFieldOfViewPatch");
+            LOG("[ERROR] main(): Failed to find aimCamFieldOfViewPatchAddr");
             return;
         }
 
         g_aimCamFieldOfViewPatch = bytepatch_t((BYTE*)result, std::vector<BYTE> { 0x0F, 0x29, 0xD9, NOP, NOP, NOP, NOP, NOP}); // movaps xmm1, xmm3 (0)
 
-        result = BytePattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx").get().get(-0x5);
+        pattern = BytePattern((BYTE*)"\x48\x85\xC0\x75\x34\x8B\x0D", "xxxxxxx");
 
-        if (result) {
+        if (pattern.size()) {
+
+            result = pattern.get().get(-0x5);
+
             LOG("main(): getGxtEntry() found at 0x%llX", result);
         }
 
@@ -1606,16 +1616,16 @@ void setupHooks() {
 
         g_getGxtEntry = HookManager::SetCall(result, getGxtEntry_Hook);
 
-        BytePattern pattern = BytePattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
+        pattern = BytePattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
 
-        result = pattern.get().get(-0x1A);
+        if (pattern.size()) {
+            result = pattern.get().get(-0x1A);
 
-        if (result) {
             LOG("main(): SetMenuSlot() #1 found at 0x%llX", result);
         }
 
         else {
-            LOG("[ERROR] main(): Failed to find setMenuSlot() #1");
+            LOG("[ERROR] main(): Failed to find setMenuSlotAddr");
             return;
         }
 
@@ -1623,22 +1633,16 @@ void setupHooks() {
 
         result = pattern.get().get(gameVersion < VER_1_0_2545_0_STEAM ? 0xA8 : 0xA9);
 
-        if (result) {
-            LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
-        }
-
-        else {
-            LOG("[ERROR] main(): Failed to find SetMenuSlot() #2");
-            return;
-        }
-
+        LOG("main(): SetMenuSlot() #2 found at 0x%llX", result);
+     
         g_addToggleFn = HookManager::SetCall(result, UIMenu__AddItem_Hook); // +0xA9
 
         pattern = BytePattern((BYTE*)"\x81\xE9\x00\x00\x00\x00\x74\x25\xFF\xC9", "xx????xxxx");
 
-        result = pattern.get().get(-0x2A);
+        if (pattern.size()) {
 
-        if (result) {
+            result = pattern.get().get(-0x2A);
+
             LOG("main(): ResetCameraProfileSettings() found at 0x%llX", result);
         }
 
@@ -1649,11 +1653,12 @@ void setupHooks() {
 
         g_resetCameraSettings = HookManager::SetCall(result, ResetCameraProfileSettings_Hook);
 
-        pattern = BytePattern((BYTE*)"\xF2\x0F\x2C\x56\x00", "xxxx?");
+        pattern = BytePattern((BYTE*)"\x0F\x2C\x56\x00\x48\x8D", "xxx?xx");
 
-        result = pattern.get().get(0x20);
+        if (pattern.size()) {
 
-        if (result) {
+            result = pattern.get().get(0x1F);
+
             LOG("main(): setPauseMenuPreference() found at 0x%llX", result);
         }
 
@@ -1664,10 +1669,21 @@ void setupHooks() {
 
         g_setPauseMenuPreference = HookManager::SetCall(result, SetPauseMenuPreference_Hook);
 
-        result = pattern.get().get(0x12);
+        result = pattern.get().get(0x11);
 
         // always toggle preferences
         memset((void*)result, 0x90, 6);
+        
+       pattern = BytePattern((BYTE*)"\xF6\x87\x40\x01\x00\x00\x01", "xxxxxxx");
+
+       if (pattern.size()) {
+
+           result = pattern.get().getTargetRel7(-0x12).get();
+
+           LOG("main(): camGameplayDirectorDef found at 0x%llX", result);
+
+           g_camGameplayDirectorDef = result;
+       }
     }
 }
 
@@ -1706,14 +1722,14 @@ void scriptLoad() {
 
         loadConfigData();
 
-        //LOG("setup hooks");
+        //LOG("initialize");
 
-        setupHooks();
+        mainInit();
 
         //LOG("check camera frame");
 
         // pump camera frame for addPauseMenuItems();
-        checkCameraFrame();
+        checkCameraOnFrame();
 
         addPauseMenuItems();
 
@@ -1722,9 +1738,14 @@ void scriptLoad() {
 
     LOG("Lookup cam director by key...");
 
-    unsigned int camGameplayDirectorHash = 0x3E9ED27Fu;
-    // always need to grab this since it will be different after every game reload.
-    g_camGameplayDirector = GetCamDirectorFromPool(&camGameplayDirectorHash);
+    // Always need to grab this since it will be different after every game reload.
+    // 2023-1-7: Bit of a hack but in newer versions this function takes a pointer to an unknown structure. 
+    // We'll just check for a null result and recall this with a pointer to said structure if needed for backward compat
+
+    g_camGameplayDirector = GetCamDirectorFromPool(&g_camGameplayDirectorHash);
+
+    if (!g_camGameplayDirector && g_camGameplayDirectorDef)
+        g_camGameplayDirector = GetCamDirectorFromPool((unsigned long long*)g_camGameplayDirectorDef);
 
     LOG("Begin loop..");
 

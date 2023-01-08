@@ -26,9 +26,9 @@ bool Game::Initialize(int gameVersion) {
 
     #pragma region getCamDirectorFromPool
 
-    auto pattern = BytePattern((BYTE*)"\x39\x18\x74\x0A\x48\xFF\xC6", "xxxxxxx");
+    auto pattern = BytePattern((BYTE*)"\xE8\x00\x00\x00\x00\x48\x8D\x48\x30\xEB\x0B", "x????xxxxxx");
 
-    result = (uintptr_t)pattern.get().get(-0x48);
+    result = (uintptr_t)pattern.get().getCall().get();
 
     if (result) {
         LOG("getCamDirectorFromPool() found at 0x%llX", result);
@@ -45,7 +45,7 @@ bool Game::Initialize(int gameVersion) {
 
     #pragma region Cam Metadata Pool
 
-    result = (uintptr_t)BytePattern((BYTE*)"\x88\x50\x41\x48\x8B\x47\x40", "xxxxxxx").get().get(gameVersion < VER_1_0_2189_0_STEAM  ? -0x28 : -0x30);
+    result = (uintptr_t)BytePattern((BYTE*)"\x48\x8D\x94\x24\x40\x01\x00\x00\x48\x8D\x0D\x00\x00\x00\x00", "xxxxxxxxxxx????").get().getTargetRel7(8).get();
 
     if (result) {
         LOG("CamMetadataPool found at 0x%llX", result);
@@ -56,9 +56,7 @@ bool Game::Initialize(int gameVersion) {
         return false;
     }
 
-    result = *reinterpret_cast<int *>(result - 4) + result + 6;
-
-    m_pCamMetadataPool = reinterpret_cast<rage::pgCollection<camMetadataRef*>*>((*reinterpret_cast<int *>(result + 3) + result - 1));
+    m_pCamMetadataPool = reinterpret_cast<rage::pgCollection<camMetadataRef*>*>(result);
 
     #pragma endregion
 

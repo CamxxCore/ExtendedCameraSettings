@@ -164,7 +164,7 @@
       <AdditionalOptions>../lib/ScriptHookV.lib</AdditionalOptions>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(TargetPath)" "D:\Rockstar Games\Grand Theft Auto V\asi\$(ProjectName).asi"</Command>
+      <Command>copy "$(TargetPath)" "D:\Games\Rockstar Games\Grand Theft Auto V\asi\$(ProjectName).asi"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

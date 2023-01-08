@@ -5,7 +5,7 @@ class AddressMgr;
 extern AddressMgr g_addresses;
 
 #define __MAJOR_REV__ 1.2
-#define __MINOR_REV__ .08
+#define __MINOR_REV__ .09
 
 #define APP_VERSION (__MAJOR_REV__ + __MINOR_REV__)
 
@@ -15,7 +15,7 @@ extern AddressMgr g_addresses;
 #define WriteDouble(a,b)(*(double*)a = b)
 #define WriteBool(a,b)(*(bool*)a = b)
 
-//#define RLB_DEBUG
+#define RLB_DEBUG
 
 #include <windows.h>
 
