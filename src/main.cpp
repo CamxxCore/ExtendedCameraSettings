@@ -217,7 +217,7 @@ void readPresetsFromFile(const std::string& filename) {
 
             if (!element) continue;
 
-            LOG("Adding %s presets for model %s (%s)", it->second.c_str(), modelName);
+            LOG("Adding %s presets for model %s", it->second.c_str(), modelName);
 
             for (auto p = element->FirstChildElement("Preset"); p != nullptr; p = p->NextSiblingElement("Preset")) {
                 CamMetadataPreset preset;
@@ -1616,7 +1616,7 @@ void mainInit() {
 
         g_getGxtEntry = HookManager::SetCall(result, getGxtEntry_Hook);
 
-        pattern = BytePattern((BYTE*)"\x83\xFF\x05\x74\x15", "xxxxx");
+        pattern = BytePattern((BYTE*)"\x83\xFF\x00\x74\x15", "xx?xx");
 
         if (pattern.size()) {
             result = pattern.get().get(-0x1A);
@@ -1729,7 +1729,7 @@ void scriptLoad() {
         //LOG("check camera frame");
 
         // pump camera frame for addPauseMenuItems();
-        checkCameraOnFrame();
+        checkCameraFrame();
 
         addPauseMenuItems();
 
