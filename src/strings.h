@@ -136,6 +136,40 @@ static LPCTSTR zh_cn[] {
     u8"第三人称驾驶车辆高速抖动"
 };
 
+static LPCTSTR pt_br[] {
+    u8"Campo de Visão da Câmera (Primeira Pessoa)",
+    u8"Sempre Exibir Mira (Primeira Pessoa)",
+    u8"Ângulo Mínimo da Câmera (Primeira Pessoa)",
+    u8"Ângulo Máximo da Câmera (Primeira Pessoa)",
+    u8"Campo de Visão da Câmera ao Mirar (Primeira Pessoa)",
+    u8"Campo de Visão da Câmera (Terceira Pessoa)",
+    u8"Centralização Automática da Câmera (Terceira Pessoa)",
+    u8"Origem Horizontal da Câmera (Terceira Pessoa)",
+    u8"Origem Vertical da Câmera (Terceira Pessoa)",
+    u8"Distância da Câmera (Terceira Pessoa)",
+    u8"Tremor de Câmera ao Correr (Terceira Pessoa)",
+    u8"Ângulo Mínimo da Câmera (Terceira Pessoa)",
+    u8"Ângulo Máximo da Câmera (Terceira Pessoa)",
+    u8"Campo de Visão ao Mirar (Terceira Pessoa)",
+    u8"Origem Horizontal da Câmera ao Mirar (Terceira Pessoa)",
+    u8"Distância da Câmera ao Mirar (Terceira Pessoa)",
+    u8"Campo de Visão da Câmera Dentro do Veículo (Primeira Pessoa)",
+    u8"Origem Vertical da Câmera Dentro do Veículo (Primeira Pessoa)",
+    u8"Alterar para a Câmera em Terceira Pessoa, Quando o Veículo Estiver na Água (Primeira Pessoa)",
+    u8"Alterar para a Câmera em Terceira Pessoa, Quando o Veículo for Destruído (Primeira Pessoa)",
+    u8"Ângulo Mínimo da Câmera Dentro do Veículo (Primeira Pessoa)",
+    u8"Ângulo Máximo de Inclinação da Câmera Dentro do Veículo (Primeira Pessoa)",
+    u8"Campo de Visão da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Ângulo Mínimo da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Ângulo Máximo da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Centralização Automática da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Distância da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Distância da Câmera Dentro do Veículo em Alta Velocidade (Terceira Pessoa)",
+    u8"Altura da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Origem Horizontal da Câmera Dentro do Veículo (Terceira Pessoa)",
+    u8"Tremor de Câmera Dentro do Veículo em Alta Velocidade (Terceira Pessoa)"
+};
+
 enum GlobalTextEntry_t {
     MO_FP_FOV,
     MO_FP_USE_RETICLE,
@@ -170,11 +204,12 @@ enum GlobalTextEntry_t {
     MO_TP_VEHICLE_SHAKE
 };
 
-static LPCTSTR* langtext_array[4] {
+static LPCTSTR* langtext_array[5] {
     en_us,
     en_es,
     ru_ru,
-    zh_cn
+    zh_cn,
+    pt_br
 };
 
 inline LPCTSTR getConstString(int langugageId, GlobalTextEntry_t textId) {
